@@ -1,0 +1,24 @@
+# ---- secrets & credentials: NEVER in repo ----
+# substack session cookie lives at %USERPROFILE%\.content_agent\substack_cookie.txt (off-repo)
+*.cookie
+*cookie*
+*.token
+*token*
+.env
+config/private/
+
+# ---- runtime state & outputs (see DATA.md) ----
+state/
+queue/
+out/
+logs/
+*.log
+
+# ---- python ----
+.venv/
+__pycache__/
+*.pyc
+
+# ---- editor/os ----
+.vscode/
+Thumbs.db
