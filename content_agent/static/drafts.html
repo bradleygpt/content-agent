@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Content Queue</title>
+<style>
+  :root{--bg:#0b0e14;--panel:#121723;--bd:#1e2632;--fg:#e6edf3;--dim:#9aa6b8;--accent:#4cc2ff;--warn:#f0b429;
+        --good:#7ee787;--bad:#ff7b72;--eng:#c9a3ff;}
+  *{box-sizing:border-box;-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;
+       padding:max(12px,env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom))}
+  h1{font-size:16px;margin:2px 0 4px;font-weight:600}
+  .streak{font-size:12px;color:var(--dim);margin-bottom:10px}
+  .streak b{color:var(--accent)} .streak .on{color:var(--good)} .streak .off{color:var(--dim)}
+  .card{background:var(--panel);border:1px solid var(--bd);border-radius:12px;margin:10px 0;overflow:hidden}
+  .head{padding:11px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;cursor:pointer}
+  .t{font-size:14px;font-weight:600;flex:1} .meta{font-size:11px;color:var(--dim)}
+  .pill{font-size:10.5px;border-radius:999px;padding:2px 8px;border:1px solid var(--bd);white-space:nowrap}
+  .pending{color:var(--accent)} .published{color:var(--good)} .rejected{color:var(--dim)}
+  .failed_fidelity{color:var(--bad);border-color:#5b2320}
+  .body{display:none;border-top:1px solid var(--bd);padding:12px}
+  .card.open .body{display:block}
+  .piece{font-size:14.5px;line-height:1.65;margin-bottom:10px} .piece strong{color:#fff}
+  .piece h1,.piece h2,.piece h3{font-size:15px;margin:10px 0 4px}
+  .sec{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:12px 0 4px}
+  .prov,.fid{font-size:12px;color:var(--dim);background:#0e1622;border:1px solid var(--bd);border-radius:8px;padding:8px}
+  .fid .ok{color:var(--good)} .fid .bad{color:var(--bad)} .fid .flag{color:var(--warn)}
+  .fid ul{margin:4px 0 4px 16px;padding:0}
+  textarea{width:100%;min-height:180px;background:#0e1622;color:var(--fg);border:1px solid var(--bd);
+           border-radius:8px;padding:9px;font:13px/1.5 ui-monospace,monospace;display:none;margin-top:6px}
+  .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  button{background:#1b2433;color:#fff;border:1px solid var(--bd);border-radius:9px;padding:9px 13px;font:13px inherit;font-weight:600}
+  button.ok{border-color:#245b33} button.no{border-color:#5b2320} button.warn{border-color:#5b4a20}
+  .note{font-size:12px;color:var(--dim);margin-top:8px} .note .bad{color:var(--bad)} .note .good{color:var(--good)}
+</style>
+</head>
+<body>
+<h1>📝 Content Queue</h1>
+<div class="streak" id="streak">loading…</div>
+<div id="list"></div>
+<script>
+const $=(id)=>document.getElementById(id);
+const usp=new URLSearchParams(location.search);
+let TOKEN=usp.get("token")||localStorage.getItem("mtk")||"";
+if(usp.get("token")){ localStorage.setItem("mtk",TOKEN); history.replaceState(null,"",location.pathname); }
+const H={"Content-Type":"application/json","Authorization":"Bearer "+TOKEN,"ngrok-skip-browser-warning":"1"};
+const api=(p,opt)=>fetch(`/api/content/${p}${p.includes("?")?"&":"?"}token=${encodeURIComponent(TOKEN)}`,
+                          Object.assign({headers:H},opt||{})).then(r=>r.json());
+const esc=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const md=s=>esc(s).replace(/^### (.*)$/gm,"<h3>$1</h3>").replace(/^## (.*)$/gm,"<h2>$1</h2>")
+             .replace(/^# (.*)$/gm,"<h1>$1</h1>").replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+             .replace(/^[-*] (.*)$/gm,"• $1").replace(/\n/g,"<br>");
+let open=new Set(), cache={};
+
+function fidHtml(f){
+  if(!f) return "";
+  let h=`<div class="fid">verdict: ${f.passed?'<b class="ok">PASS</b>':'<b class="bad">FAILED-FIDELITY</b>'}`;
+  if((f.failures||[]).length){ h+=`<div class="sec">failures</div><ul>`+
+    f.failures.map(x=>`<li class="bad">${esc(x.type)} — ${esc(x.token)}: ${esc(x.detail)}</li>`).join("")+`</ul>`; }
+  h+=`<div class="sec">label checklist</div><ul>`+Object.entries(f.labels||{}).filter(([k,v])=>v.required)
+    .map(([k,v])=>`<li class="${v.present?'ok':'bad'}">${k}: ${v.present?'present':'MISSING'}</li>`).join("")+`</ul>`;
+  if((f.directional||[]).length){ h+=`<div class="sec">flagged directional claims (review these)</div><ul>`+
+    f.directional.map(x=>`<li class="flag">"${esc(x.sentence)}" — numbers ${x.numbers_bound?'bound to evidence':'<b class="bad">NOT all bound</b>'}</li>`).join("")+`</ul>`; }
+  return h+`</div>`;
+}
+
+async function act(id,action,body){
+  const r=await api(`drafts/${id}/${action}`,{method:"POST",body:JSON.stringify(body||{})});
+  if(r.error) alert(action+" failed: "+r.error);
+  delete cache[id]; load();
+  return r;
+}
+
+function card(s){
+  const d=cache[s.id];
+  const st=`<span class="pill ${s.status}">${s.status.replace("_"," ")}</span>`;
+  let body="";
+  if(open.has(s.id)&&d){
+    const pub=d.review&&d.review.publish?`<div class="note good">published via ${esc(d.review.publish.mode)} — ${esc(d.review.publish.detail||"")} ${esc(d.review.publish.url_or_path||"")}</div>`:"";
+    body=`<div class="body">
+      <div class="piece">${md(d.body_md)}</div>
+      <div class="sec">provenance</div>
+      <div class="prov">study: <b>${esc(d.provenance.study_key||"")}</b> · artifact: ${esc(d.provenance.artifact||"")}
+        · trigger: ${esc((d.trigger||{}).trigger||"manual")} ${esc((d.trigger||{}).topic||"")}</div>
+      <div class="sec">fidelity report</div>${fidHtml(d.fidelity)}
+      <textarea id="ed-${d.id}">${esc(d.body_md)}</textarea>
+      <div class="acts" id="acts-${d.id}">${actions(d)}</div>
+      ${pub}</div>`;
+  }
+  return `<div class="card ${open.has(s.id)?"open":""}" id="c-${s.id}">
+    <div class="head" onclick="toggle('${s.id}')">
+      <div><div class="t">${esc(s.title)}</div>
+      <div class="meta">${s.kind} · ${esc(s.study||"")} · ${esc(s.created)} ${s.edited?"· edited":""}
+      ${s.n_flags?`· ⚠${s.n_flags} flagged`:""}</div></div>${st}</div>${body}</div>`;
+}
+
+function actions(d){
+  if(d.status==="pending"){
+    const ec=d.edited?`<button class="ok" onclick="act('${d.id}','approve',{edit_class:'taste'})">Approve (taste edit)</button>
+      <button class="warn" onclick="act('${d.id}','approve',{edit_class:'correctness'})">Approve (correctness edit — resets streak)</button>`
+      :`<button class="ok" onclick="act('${d.id}','approve',{edit_class:'none'})">Approve</button>`;
+    return ec+`<button onclick="editToggle('${d.id}')">Edit</button>
+      <button class="no" onclick="rejectDraft('${d.id}')">Reject</button>`;
+  }
+  if(d.status==="failed_fidelity")
+    return `<button onclick="editToggle('${d.id}')">Edit (must pass fidelity before approve)</button>
+      <button class="no" onclick="rejectDraft('${d.id}')">Reject</button>`;
+  if(d.status==="published")
+    return `<button class="no" onclick="correction('${d.id}')">Log factual correction (tripwire)</button>`;
+  return "";
+}
+
+window.toggle=async id=>{
+  if(open.has(id)) open.delete(id);
+  else { open.add(id); if(!cache[id]) cache[id]=await api("drafts/"+id); }
+  render();
+};
+window.editToggle=id=>{
+  const ta=$("ed-"+id); const showing=ta.style.display==="block";
+  ta.style.display=showing?"none":"block";
+  if(!showing){ $("acts-"+id).insertAdjacentHTML("beforeend",
+    `<button class="ok" id="sv-${id}" onclick="saveEdit('${id}')">Re-check fidelity &amp; save</button>`); }
+  else { const b=$("sv-"+id); if(b) b.remove(); }
+};
+window.saveEdit=async id=>{ await act(id,"edit",{body_md:$("ed-"+id).value}); };
+window.rejectDraft=async id=>{ const r=prompt("Reject reason (optional)")||""; await act(id,"reject",{reason:r}); };
+window.correction=async id=>{
+  const n=prompt("Describe the factual correction (this reverts autonomy + resets the streak)")||"";
+  if(n!==null) await act(id,"correction",{note:n});
+};
+
+let drafts=[];
+function render(){
+  $("list").innerHTML = drafts.length? drafts.map(card).join("") :
+    `<div class="meta" style="margin-top:20px">no drafts yet — the daily pass fills this queue</div>`;
+}
+async function load(){
+  try{
+    const [st,dr]=await Promise.all([api("state"),api("drafts")]);
+    $("streak").innerHTML=`streak <b>${st.streak}/${st.required_streak}</b> · autonomy `+
+      (st.autonomy_enabled?`<span class="on">ON</span>`:`<span class="off">OFF (per-piece review)</span>`)+
+      ` · publisher: ${esc(st.adapter)}`;
+    drafts=dr.drafts||[];
+    for(const id of open) if(!cache[id]) cache[id]=await api("drafts/"+id);
+    render();
+  }catch(e){ $("streak").textContent="connection blip — retrying…"; }
+}
+load(); setInterval(load,5000);
+</script>
+</body>
+</html>
