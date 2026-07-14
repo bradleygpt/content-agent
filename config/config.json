@@ -1,0 +1,30 @@
+{
+  "markets_llm_root": "C:/Users/bmhar/code/markets-llm",
+  "publisher": {
+    "adapter": "auto",
+    "publication_url": null,
+    "post_mode": "draft_only"
+  },
+  "drafting": {
+    "model": "gemma3:12b-it-q4_K_M",
+    "ollama_url": "http://localhost:11434",
+    "flagship_words": [800, 1200],
+    "notes_per_flagship": 3
+  },
+  "triggers": {
+    "calendar_windows_weeks": {"midterm_election": 16, "pres_election": 16},
+    "cadence_days": 7
+  },
+  "news_feeds": [
+    "https://www.federalreserve.gov/feeds/press_all.xml",
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+    "https://feeds.content.dowjones.io/public/rss/mw_topstories"
+  ],
+  "gpu": {"free_mib_max_used": 1500, "attempts": 6, "sleep_seconds": 600},
+  "server": {"host": "127.0.0.1", "port": 8799},
+  "autonomy": {
+    "enabled": false,
+    "required_streak": 12,
+    "note": "flip criteria live in queue_store.py: >=required_streak consecutive approvals with zero correctness edits; correctness edit resets; post-publication factual correction auto-reverts enabled to false"
+  }
+}
