@@ -1,9 +1,12 @@
 {
   "markets_llm_root": "C:/Users/bmhar/code/markets-llm",
   "publisher": {
-    "adapter": "auto",
-    "publication_url": null,
-    "post_mode": "draft_only"
+    "_SAFETY_2026_07_14": "adapter FORCED to 'manual' — the Substack account was SUSPENDED (Spam & Phishing) minutes after the first programmatic Note post during C0 validation. Do NOT set this back to 'auto' until the appeal at https://substack.com/appeals is resolved AND a decision is made about whether to use the unofficial write API at all. The manual outbox path is unaffected and fully working.",
+    "adapter": "manual",
+    "publication_name": "Akribeia Insights",
+    "publication_url": "https://akribeiainsights.substack.com",
+    "post_mode": "draft_only",
+    "programmatic_notes_enabled": false
   },
   "drafting": {
     "model": "gemma3:12b-it-q4_K_M",

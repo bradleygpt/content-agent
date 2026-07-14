@@ -63,6 +63,15 @@ def _md_to_html(md: str) -> str:
     return "\n".join(out)
 
 
+def _publication() -> tuple[str, str]:
+    """(name, url) from config — so the paste-fallback boilerplate carries the real masthead."""
+    try:
+        cfg = json.loads((ROOT / "config" / "config.json").read_text(encoding="utf-8"))["publisher"]
+        return cfg.get("publication_name") or "", cfg.get("publication_url") or ""
+    except Exception:
+        return "", ""
+
+
 class ManualFallbackAdapter:
     """Always available. Renders the final piece to out/publish_outbox/ for manual paste."""
     name = "manual_fallback"
@@ -74,11 +83,13 @@ class ManualFallbackAdapter:
         stamp = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
         slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:48]
         OUTBOX.mkdir(parents=True, exist_ok=True)
+        name, url = _publication()
+        byline = f"\n\n---\n*{name} — {url}*\n" if name else ""
+        body = f"# {title}\n\n*{subtitle}*\n\n{markdown}{byline}"
         md_path = OUTBOX / f"{stamp}_{slug}.md"
-        md_path.write_text(f"# {title}\n\n*{subtitle}*\n\n{markdown}\n", encoding="utf-8")
-        (OUTBOX / f"{stamp}_{slug}.html").write_text(_md_to_html(f"# {title}\n\n*{subtitle}*\n\n{markdown}"),
-                                                     encoding="utf-8")
-        return PublishResult(ok=True, mode="manual", detail="rendered for paste (md + html)",
+        md_path.write_text(body + "\n", encoding="utf-8")
+        (OUTBOX / f"{stamp}_{slug}.html").write_text(_md_to_html(body), encoding="utf-8")
+        return PublishResult(ok=True, mode="manual", detail=f"rendered for paste (md + html) for {name}",
                              url_or_path=str(md_path))
 
     def publish_note(self, text: str):
@@ -139,7 +150,21 @@ class SubstackCookieAdapter:
             return fb
 
     def publish_note(self, text: str):
-        """Notes via the raw unofficial endpoint — no library support exists for Notes (C0 finding)."""
+        """DISABLED 2026-07-14: programmatic Notes posting is what tripped Substack's Spam & Phishing
+        detection and got the brand-new account SUSPENDED during C0 validation. This path is hard-gated
+        off (config publisher.programmatic_notes_enabled) and falls through to the manual outbox.
+        Do not re-enable without an explicit decision — see docs/REAUTH.md.
+        Original note (raw unofficial endpoint — no library support exists for Notes (C0 finding)."""
+        import json as _json
+        try:
+            _cfg = _json.loads((ROOT / "config" / "config.json").read_text(encoding="utf-8"))
+            if not _cfg["publisher"].get("programmatic_notes_enabled", False):
+                fb = self.fallback.publish_note(text)
+                fb.update(mode="manual_notes_disabled",
+                          detail="programmatic Notes DISABLED (account suspension 2026-07-14); " + fb["detail"])
+                return fb
+        except KeyError:
+            pass
         try:
             import requests
             cookie = self._cookie_string()

@@ -21,18 +21,24 @@ Zero-cost throughout. X/Twitter is Phase 2 — no X surface exists here.
 - `run_daily.py` — the daily pass (GPU-lowest-priority; yields to everything)
 - `scripts/c0_validate.py` — Substack capability validation harness
 
-## C0 capability truth (2026-07-13)
+## C0 capability truth — MEASURED LIVE 2026-07-14 (⛔ account suspended)
 
-| Capability | Path | Status |
-|---|---|---|
-| Cookie auth | python-substack `Api(cookies_path/cookies_string)` | library supports; **live validation pending cookie** |
-| Notes | raw `POST substack.com/api/v1/comment/feed` (NO library supports Notes) | implemented in adapter; **pending cookie** |
-| Post draft | `create_draft_from_markdown` | library supports; **pending cookie** |
-| Full post publish | `publish_draft` / `create_draft_from_markdown(publish=True)` | library supports; **pending cookie**; launch default is draft-only |
-| Manual fallback | render md+html to `out/publish_outbox/` | **PROVEN** (tested) |
+**Publication:** Akribeia Insights — akribeiainsights.substack.com
 
-Bradley's one credentialed step: create the publication, store the session cookie per `docs/REAUTH.md`,
-run `scripts/c0_validate.py --all`, record results here. Until then every publish lands in the outbox.
+| Capability | Status |
+|---|---|
+| Cookie auth | ✅ **WORKS** (`id=529192399`, name "Akribeia Insights") |
+| Post **draft** creation | ✅ **WORKS** — real draft `id=207075402` landed, unpublished |
+| **Notes** (programmatic) | ⚠️ works only with spoofed browser headers — **and it got the account SUSPENDED** (Spam & Phishing). Now **hard-gated off**. |
+| Full programmatic **publish** | ❓ **UNPROVEN** — `publish_draft` exists but was deliberately not exercised, and can't be tested while suspended |
+| **Manual outbox** (paste) | ✅ **WORKS**, carries the Akribeia Insights byline — **unaffected; this is the launch path** |
+
+**LAUNCH MODE: outbox / manual paste.** `publisher.adapter` is forced to `"manual"` and
+`programmatic_notes_enabled: false` until the appeal (https://substack.com/appeals) resolves and a decision
+is made on whether to use the unofficial write API at all. See `docs/REAUTH.md` for the full incident.
+
+The value of this project was never the posting — it is the fidelity-checked drafting. Drafting is
+unaffected and fully operational.
 
 ## The fidelity checker (hard precondition)
 
