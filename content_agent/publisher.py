@@ -33,6 +33,21 @@ class PublishResult(dict):
     """{ok, mode, detail, url_or_path}"""
 
 
+def draft_id_from_response(res: dict | None):
+    """Extract the draft id from python-substack's create_draft_from_markdown response.
+
+    The library returns {"draft": {...}, "tags":..., "prepublish":..., "publish":...} — the id lives at
+    res["draft"]["id"], NOT res["id"]. Reading the top level returned None during the 2026-07-14 incident
+    even though the draft (id 207075402) landed. Fall back to the top-level id for older/other shapes.
+    Pure function -> fixture-testable with NO live Substack call (see scripts/c0_validate.py --selftest)."""
+    if not isinstance(res, dict):
+        return None
+    draft = res.get("draft")
+    if isinstance(draft, dict) and draft.get("id") is not None:
+        return draft["id"]
+    return res.get("id")
+
+
 def _md_to_html(md: str) -> str:
     """Minimal markdown -> HTML for paste fallback (headers, bold, italics, lists, paragraphs)."""
     out, in_list = [], False
@@ -141,7 +156,7 @@ class SubstackCookieAdapter:
             api = self._client()
             res = api.create_draft_from_markdown(title=title, markdown=markdown, subtitle=subtitle,
                                                  publish=not draft_only, send=False)
-            did = (res or {}).get("id")
+            did = draft_id_from_response(res)
             mode = "substack_draft" if draft_only else "substack_published"
             return PublishResult(ok=True, mode=mode, detail=f"draft id {did}", url_or_path=str(did))
         except Exception as e:
