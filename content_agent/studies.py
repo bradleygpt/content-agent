@@ -43,8 +43,25 @@ def list_library() -> list[str]:
 
 
 def evidence_for(study_id: str) -> dict | None:
-    """-> {study_id, title_hint, evidence (canonical block text), provenance} or None."""
+    """-> {study_id, title_hint, evidence (canonical block text), provenance} or None.
+
+    Study-id forms:
+      event:<key>            -> the SPY-level per-event study (build_event_block)
+      sector_event:<key>     -> the SECTOR-BY-SECTOR comparative for that event (build_sector_event_block,
+                                mode 'all') — the dispersion-across-sectors material.
+    """
     kind, _, key = study_id.partition(":")
+    if kind == "sector_event":
+        st = _event_studies().get(key)
+        if not st or not st.get("sectors"):
+            return None
+        scope = {"scoped": True, "mode": "all", "anchors": []}
+        return {"study_id": study_id,
+                "title_hint": f"cross-sector dispersion around {st.get('event_type')}",
+                "evidence": resc.build_sector_event_block(key, st, scope),
+                "provenance": {"artifact": "deliverables/relational/event_studies.json",
+                               "study_key": key, "n_events": st.get("n_events"),
+                               "view": "sector_comparative", "n_sectors": len(st.get("sectors", {}))}}
     if kind == "event":
         st = _event_studies().get(key)
         if not st:

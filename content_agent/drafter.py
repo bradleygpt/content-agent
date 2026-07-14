@@ -44,6 +44,33 @@ FLAGSHIP_TASK = """Write a flagship post in GitHub-flavored markdown.
 - Include the weighted two-sided section and a deferral close.
 - Output ONLY the markdown post, no preamble, no code fences."""
 
+# For a SECTOR-BY-SECTOR comparative block the unit is SECTORS, not events. The generic FLAGSHIP_TASK's
+# "present EVERY event individually" instruction misfires here: there are no per-event-per-sector figures in
+# the evidence, so the model fabricates a year-by-year grid (observed 2026-07-14, twice). This task removes
+# that instruction and hard-forbids the fabrication.
+FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown.
+- First line: "# <title>" (a title that signals measurement over folklore, no clickbait).
+- 800-1,200 words.
+- The spine is the SECTOR-BY-SECTOR comparison in the MEASURED EVIDENCE block. The UNIT IS SECTORS, not
+  events. Lead with the ranked per-sector MEDIAN drawdowns, deepest-to-shallowest, and the spread between
+  the extremes — the dispersion IS the story.
+- HARD CONSTRAINT: the evidence gives ONE median (and one median recovery) PER SECTOR across the events. It
+  does NOT give per-event-per-sector figures. DO NOT build a year-by-year or per-event breakdown by sector,
+  and DO NOT write any number that is not printed verbatim in the evidence block. If you cannot ground a
+  figure, describe the pattern in words instead.
+- SPECIFICALLY FORBIDDEN (these fail the fidelity check): computing a SPREAD or DIFFERENCE between two
+  figures (e.g. "an 18-point gap" from -27% and -8.9%) — say "the deepest was roughly three times the
+  shallowest" in WORDS, or just name the two verbatim figures; and APPROXIMATE numbers ("about 2 months",
+  "under 20%", "nearly a fifth") — either quote the exact evidence figure or describe the magnitude with no
+  number at all.
+- Frame against the folklore ("sector playbook"/"rotation") version confident accounts run, then show what
+  the measured dispersion actually supports.
+- Give the counterweight FULL editorial weight: SMALL-N (each sector median is over only five events — a
+  handful of anecdotes, not a robust ranking) and NOT-A-RANKING (measured PAST dispersion is not a forecast
+  or a buy/avoid ranking for the next election) — in your own voice, not as a footnote.
+- Include the weighted two-sided section and a deferral close.
+- Output ONLY the markdown post, no preamble, no code fences."""
+
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
 as DIGITS with its unit), minimal honest framing, and one deferral sentence. CARRY EVERY honesty label the
@@ -71,7 +98,9 @@ def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = No
     if fidelity_failures:
         user += ["", "FIDELITY FAILURES from your previous attempt — fix EXACTLY these and change nothing "
                      "else about the numbers:"] + [f"- {f}" for f in fidelity_failures]
-    user += ["", FLAGSHIP_TASK]
+    # comparative (sector-by-sector) evidence needs the sector-unit task, not the per-event one
+    is_comparative = "SECTOR-BY-SECTOR" in evidence or "COMPARATIVE RELATIONAL" in evidence
+    user += ["", FLAGSHIP_TASK_COMPARATIVE if is_comparative else FLAGSHIP_TASK]
     body = _chat([{"role": "system", "content": SYSTEM_VOICE},
                   {"role": "user", "content": "\n".join(user)}], num_predict=2400)
     body = body.strip().removeprefix("```markdown").removeprefix("```").removesuffix("```").strip()

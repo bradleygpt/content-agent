@@ -42,6 +42,13 @@ def _fidelity_gated(make, evidence_text: str, **kw) -> dict:
 
 
 def _note_focuses(study_id: str) -> list[str]:
+    if study_id.startswith("sector_event:midterm"):
+        return ["the SPREAD between the deepest sector (semiconductors, median -27.0%) and the shallowest "
+                "(consumer staples, median -8.9%) inside the five midterm windows",
+                "how financials (median -21.0%) fell versus the S&P 500 baseline (median -15.7%) across the "
+                "five midterms",
+                "the defensive sectors — utilities (median -10.3%) and consumer staples (median -8.9%) — "
+                "versus the market in midterm drawdowns"]
     if study_id.startswith("event:midterm"):
         return ["the median depth across the five measured midterm drawdowns",
                 "how long recovery took (median and range) across the five midterms",
@@ -75,6 +82,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--now", action="store_true")
     ap.add_argument("--study", default=None)
+    ap.add_argument("--topic", default=None, help="editorial framing override for the flagship")
     ap.add_argument("--skip-notes", action="store_true")
     ap.add_argument("--notes-only", action="store_true")
     args = ap.parse_args()
@@ -82,7 +90,8 @@ def main():
     _ensure_queue_server()
     st = qs.load_state()
     if args.study:
-        trig = {"trigger": "manual", "study_id": args.study, "topic": "manual/launch draft"}
+        trig = {"trigger": "manual", "study_id": args.study,
+                "topic": args.topic or "manual/launch draft"}
     else:
         trigs = calendar_triggers()
         trigs += notable_results(st["results_watermark"])
