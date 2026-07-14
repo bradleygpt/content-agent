@@ -11,8 +11,11 @@ import subprocess
 import time
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+# "llama-server.exe" is ollama's OWN runner child process on current builds (verified: parent is
+# ollama.exe) — without it here the drafting pass yields to its own resident model. If a non-ollama
+# llama.cpp server ever runs on this box, revisit with a parent-PID check.
 _OLLAMA_NAMES = ("ollama", "ollama.exe", "ollama_llama_server", "ollama_llama_server.exe",
-                 "ollama-runner", "ollama runner")
+                 "ollama-runner", "ollama runner", "llama-server", "llama-server.exe")
 
 
 def _compute_pids() -> list[int]:

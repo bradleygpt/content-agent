@@ -28,15 +28,15 @@ from content_agent.fidelity import run_fidelity                  # noqa: E402
 from content_agent.publisher import get_adapter                  # noqa: E402
 
 
-def _fidelity_gated(make, evidence: str, **kw) -> dict:
+def _fidelity_gated(make, evidence_text: str, **kw) -> dict:
     """Draft -> check -> on hard fail regenerate ONCE with the violations injected -> second fail is
     queued as FAILED-FIDELITY (never silently dropped, never publishable in that state)."""
     d = make(**kw)
-    rep = run_fidelity(d["body_md"], evidence)
+    rep = run_fidelity(d["body_md"], evidence_text)
     if not rep["passed"]:
         fails = [f"{f['type']}: {f['token']} — {f['detail']}" for f in rep["failures"]][:12]
         d = make(**kw, fidelity_failures=fails)
-        rep = run_fidelity(d["body_md"], evidence)
+        rep = run_fidelity(d["body_md"], evidence_text)
     d["fidelity"] = rep
     return d
 
@@ -54,13 +54,32 @@ def _note_focuses(study_id: str) -> list[str]:
             "the deepest named stress episode"]
 
 
+def _ensure_queue_server():
+    """Self-heal: if the loopback queue server is down, spawn it detached (no console window)."""
+    import requests
+    import subprocess
+    try:
+        requests.get(f"http://{CFG['server']['host']}:{CFG['server']['port']}/api/content/health",
+                     timeout=3)
+        return
+    except Exception:
+        pass
+    pyw = Path(sys.executable).parent / "pythonw.exe"
+    subprocess.Popen([str(pyw if pyw.exists() else sys.executable), "-m", "content_agent.server"],
+                     cwd=str(Path(__file__).resolve().parent),
+                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    print("[daily] queue server was down — respawned")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--now", action="store_true")
     ap.add_argument("--study", default=None)
     ap.add_argument("--skip-notes", action="store_true")
+    ap.add_argument("--notes-only", action="store_true")
     args = ap.parse_args()
 
+    _ensure_queue_server()
     st = qs.load_state()
     if args.study:
         trig = {"trigger": "manual", "study_id": args.study, "topic": "manual/launch draft"}
@@ -90,12 +109,13 @@ def main():
     hints = [h for h in topical_hints() if h["study_id"] == trig["study_id"]]
     prov = {**ev["provenance"], "study_id": ev["study_id"], "drafted": dt.datetime.now().isoformat()}
 
-    print("[daily] drafting flagship...")
-    fl = _fidelity_gated(draft_flagship, ev["evidence"],
-                         topic=f"{trig.get('topic','')} — study: {ev['title_hint']}",
-                         evidence=ev["evidence"], news_hints=hints)
-    d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"], ev["evidence"], trig)
-    print(f"[daily]   flagship {d['id']} -> {d['status']}")
+    if not args.notes_only:
+        print("[daily] drafting flagship...")
+        fl = _fidelity_gated(draft_flagship, ev["evidence"],
+                             topic=f"{trig.get('topic','')} — study: {ev['title_hint']}",
+                             evidence=ev["evidence"], news_hints=hints)
+        d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"], ev["evidence"], trig)
+        print(f"[daily]   flagship {d['id']} -> {d['status']}")
 
     if not args.skip_notes:
         for focus in _note_focuses(trig["study_id"])[:CFG["drafting"]["notes_per_flagship"]]:

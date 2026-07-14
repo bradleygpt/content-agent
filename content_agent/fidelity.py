@@ -91,6 +91,15 @@ def _extract(text: str, wide_evidence: bool):
             continue
         unit = _unit_for(t, m.start(), m.end(), after)
         tokens.append({"value": v, "unit": unit, "raw": raw, "ctx": ctx.strip()})
+        if wide_evidence:
+            # evidence-side generosity: when the PRECEDING clause names a different unit ("19 drawdowns ...
+            # : 19 (deepest -35.2%"), index the value under BOTH — widens what a draft may bind to while
+            # the draft side stays strictly adjacent (the months-vs-weeks class is still caught).
+            wb = t[max(0, m.start() - 45):m.start()]
+            for u2, rx in _UNIT_RX:
+                if u2 != unit and re.search(rx, wb, re.I):
+                    tokens.append({"value": v, "unit": u2, "raw": raw, "ctx": ctx.strip()})
+                    break
     for m in re.finditer(r"\b(" + "|".join(_WORD_NUMS) + r")\b", t, re.I):
         unit = _unit_for(t, m.start(), m.end(), 25)
         if unit:                                            # word numbers only count with an adjacent unit

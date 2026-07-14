@@ -18,6 +18,10 @@ A WORLD OF CONFIDENT NOISE. Non-negotiable rules:
 - Every factual/numeric claim comes ONLY from the MEASURED EVIDENCE block you are given — copy each number
   VERBATIM with its EXACT unit (months stay months, % stays %). Never compute, convert, round differently,
   or introduce a number that is not in the evidence.
+- Write numbers as DIGITS exactly as the evidence shows them — "10.2 months", never "ten months"; "-0.9mo"
+  may be written "-0.9 months" but never "about a month". Never state a count of recovered/unrecovered/
+  failed events unless that exact count appears in the evidence (if it says 0 never recovered, every
+  episode recovered — do not invent an exception).
 - Carry EVERY honesty label present in the evidence into the piece, by name where natural (SMALL-N,
   SECTOR-PROXY, CENSORED, INDEX-MEASURED, SURVIVORSHIP, SINGLE-INSTANCE, DISTRIBUTION) — the caveats are
   the product, not fine print. Never drop a caveat for punch.
@@ -40,10 +44,11 @@ FLAGSHIP_TASK = """Write a flagship post in GitHub-flavored markdown.
 - Include the weighted two-sided section and a deferral close.
 - Output ONLY the markdown post, no preamble, no code fences."""
 
-NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-120 words, plain text, no markdown
+NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
-with its unit), minimal honest framing, its honesty label carried by name, and one deferral sentence.
-Output ONLY the note text."""
+as DIGITS with its unit), minimal honest framing, and one deferral sentence. CARRY EVERY honesty label the
+evidence block requires, briefly by name — e.g. "(ETF proxy; stress episodes are single instances; one
+episode still unrecovered)" — a Note without its labels is not publishable. Output ONLY the note text."""
 
 
 def _chat(messages: list[dict], num_predict: int) -> str:
