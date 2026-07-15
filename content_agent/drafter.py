@@ -24,7 +24,9 @@ A WORLD OF CONFIDENT NOISE. Non-negotiable rules:
   episode recovered — do not invent an exception).
 - Carry EVERY honesty label present in the evidence into the piece, by name where natural (SMALL-N,
   SECTOR-PROXY, CENSORED, INDEX-MEASURED, SURVIVORSHIP, SINGLE-INSTANCE, DISTRIBUTION) — the caveats are
-  the product, not fine print. Never drop a caveat for punch.
+  the product, not fine print. Never drop a caveat for punch. The mirror rule is equally hard: NEVER
+  assert a label or caveat the evidence does NOT carry — claiming SURVIVORSHIP filtering that never
+  happened, or a CENSORED case that doesn't exist, is a false claim exactly like a false number.
 - NEVER make a call, prediction, or recommendation. No "expect", no "will", no positioning advice. Close
   with explicit deferral: what the measurement can and cannot say about the future.
 - Structure flagship pieces as the weighted two-sided case: what the measured pattern shows, AND the
@@ -41,6 +43,13 @@ FLAGSHIP_TASK = """Write a flagship post in GitHub-flavored markdown.
   lead with the distribution and use only the evidence's illustrative cases.
 - Frame against the folklore version of this topic that confident accounts run (without inventing specific
   claims by others), then show what measurement actually supports.
+- SPECIFICALLY FORBIDDEN (these fail the fidelity check): writing an evidence figure as a WORD-NUMBER or a
+  rounded form — "ten months", "more than 10 months", "about a month", "one month prior" (when the
+  evidence says 10.2mo / 1.5mo) — every evidence figure is quoted as VERBATIM DIGITS with its exact unit
+  ("10.2 months", "1.5 months"); DERIVED COUNTS the evidence never prints ("one event did not recover"
+  when it says 0 never recovered); and computed spreads or differences between figures — make comparisons
+  in WORDS with no number ("the deepest took roughly three times as long") or by quoting both verbatim
+  figures side by side.
 - Include the weighted two-sided section and a deferral close.
 - Output ONLY the markdown post, no preamble, no code fences."""
 
@@ -73,9 +82,13 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
-as DIGITS with its unit), minimal honest framing, and one deferral sentence. CARRY EVERY honesty label the
-evidence block requires, briefly by name — e.g. "(ETF proxy; stress episodes are single instances; one
-episode still unrecovered)" — a Note without its labels is not publishable. Output ONLY the note text."""
+as DIGITS with its unit — never a word-number, never rounded, never "about"/"more than"; comparisons are
+made in words without numbers), minimal honest framing, and one deferral sentence. CARRY EVERY honesty label the
+evidence block requires, briefly by name — e.g. a Note whose evidence carries SECTOR-PROXY, SINGLE-INSTANCE
+and CENSORED might close "(ETF proxy; stress episodes are single instances; one episode still unrecovered)"
+— a Note without its labels is not publishable. The mirror rule is equally hard: name ONLY labels the
+evidence block actually carries — do not copy label names from this instruction or anywhere else; a caveat
+the evidence never stated is a false claim. Output ONLY the note text."""
 
 
 def _chat(messages: list[dict], num_predict: int) -> str:

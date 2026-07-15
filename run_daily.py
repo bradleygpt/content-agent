@@ -109,6 +109,18 @@ def main():
         print(f"[daily] no evidence for {trig['study_id']} — abort")
         return
 
+    # TRIGGER CONTEXT rides into the CHECKABLE evidence: framing numbers a countdown piece legitimately
+    # states ("16.0 weeks away", the election date) come from trigger/provenance metadata, not the study
+    # block — without this they false-fail NO-MATCH (observed 2026-07-14). The drafter still receives the
+    # pure study block as its only source of claims; the trigger numbers reach it via the topic line, and
+    # the checker accepts them because they are provenance, not invention. Stored as the draft's evidence
+    # so the /drafts edit-recheck path binds them identically.
+    trig_bits = [b for b in (str(trig.get("topic") or ""),
+                             f"{trig['weeks_out']} weeks until the event"
+                             if trig.get("weeks_out") is not None else "") if b]
+    ev_check = ev["evidence"] + ("\n\nTRIGGER CONTEXT (provenance metadata; legitimate numeric "
+                                 "evidence):\n- " + "\n- ".join(trig_bits) if trig_bits else "")
+
     gcfg = CFG["gpu"]
     free = gpu_free_for_drafting()[0] if args.now else wait_for_gpu(gcfg["attempts"], gcfg["sleep_seconds"])
     if not free:
@@ -120,16 +132,16 @@ def main():
 
     if not args.notes_only:
         print("[daily] drafting flagship...")
-        fl = _fidelity_gated(draft_flagship, ev["evidence"],
+        fl = _fidelity_gated(draft_flagship, ev_check,
                              topic=f"{trig.get('topic','')} — study: {ev['title_hint']}",
                              evidence=ev["evidence"], news_hints=hints)
-        d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"], ev["evidence"], trig)
+        d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"], ev_check, trig)
         print(f"[daily]   flagship {d['id']} -> {d['status']}")
 
     if not args.skip_notes:
         for focus in _note_focuses(trig["study_id"])[:CFG["drafting"]["notes_per_flagship"]]:
-            nt = _fidelity_gated(draft_note, ev["evidence"], evidence=ev["evidence"], stat_focus=focus)
-            nd = qs.new_draft("note", nt["title"], nt["body_md"], prov, nt["fidelity"], ev["evidence"], trig)
+            nt = _fidelity_gated(draft_note, ev_check, evidence=ev["evidence"], stat_focus=focus)
+            nd = qs.new_draft("note", nt["title"], nt["body_md"], prov, nt["fidelity"], ev_check, trig)
             print(f"[daily]   note {nd['id']} -> {nd['status']}")
 
     # autonomy (ships OFF): only fidelity-PASSING drafts, only when the flag is on

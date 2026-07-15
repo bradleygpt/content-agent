@@ -5,10 +5,15 @@
    module exists to kill). Normalization is trivial-formatting only: unicode minus, %/percent, word numbers
    ("six weeks"), hyphenated units ("3.6-month"). Nothing looser. A draft number with no evidence match at
    all is also a hard fail.
-2. LABEL COMPLETENESS: every honesty label present in the source evidence block must appear in the draft.
+2. LABEL COMPLETENESS + LEGITIMACY: every honesty label present in the source evidence block must appear
+   in the draft; and a label the draft ASSERTS that the evidence never carries is a hard fail
+   (INVENTED-LABEL) — a false caveat damages the brand exactly as a false number does (observed
+   2026-07-13: SURVIVORSHIP claimed on a study where all five events were included).
 3. DIRECTIONAL-CLAIM FLAGGING: sentences combining engine attribution with directional verbs are flagged
    with their numeric-bind status for the reviewer (visible, not auto-failed — the "upward drift after
-   FOMC" embellishment class is not fully decidable deterministically).
+   FOMC" embellishment class is not fully decidable deterministically). A number-free directional sentence
+   is flagged only when an ADJACENT sentence makes an engine-attributed numeric claim; number-free
+   narrative framing with number-free neighbors is editorial voice, not a checkable claim.
 
 Draft-side unit detection is NARROW (nearest unit word within ~25 chars — the draft must state its unit
 adjacently); evidence-side is CLAUSE-WIDE (to end of clause), so "recovery median 3.6, range 0.5..14.0
@@ -133,6 +138,24 @@ LABELS = {
     "SECTOR-PROXY": (r"SECTOR-PROXY", r"proxy|\betf\b"),
 }
 
+# INVENTED-LABEL detection — deliberately NARROW (explicit label invocation only) where required-label
+# satisfaction above is BROAD. The asymmetry is the point: a draft may honestly write "not a distribution"
+# on a SMALL-N study or mention "the index" without claiming INDEX-MEASURED, but writing the label term
+# itself asserts a caveat, and a caveat the evidence never carried is a false claim — same class as an
+# invented number. (DISTRIBUTION's claim regex is LARGE-N only, because honest SMALL-N drafts are
+# INSTRUCTED to say "not a distribution"; SURVIVORSHIP is broad because "survivor" is unambiguous
+# label-speak in this publication's vocabulary.)
+LABEL_CLAIMS = {
+    "SMALL-N": r"\bsmall[\s-]*n\b",
+    "SURVIVORSHIP": r"survivor",
+    "SINGLE-INSTANCE": r"\bsingle[\s-]instance\b|\bn\s*=\s*1\b",
+    "CENSORED": r"\bcensored\b",
+    "INDEX-MEASURED": r"\bindex[\s-]measured\b",
+    "DISTRIBUTION": r"\blarge[\s-]*n\b",
+    "FORWARD-LOOKING": r"\bforward[\s-]looking\b",
+    "SECTOR-PROXY": r"\bsector[\s-]proxy\b",
+}
+
 _ATTRIB_RX = re.compile(r"measured|relational engine|the engine|since 2004|the data|this study|"
                         r"across (?:the )?\d+|distribution", re.I)
 _DIRECTIONAL_RX = re.compile(r"\b(?:rise[sn]?|rising|rose|climb\w*|rall(?:y|ies|ied)|gain\w*|"
@@ -184,15 +207,40 @@ def run_fidelity(draft: str, evidence: str) -> dict:
         if required and not present:
             failures.append({"type": "MISSING-LABEL", "token": name,
                              "detail": f"evidence carries {name}; draft never states it"})
+    for name, claim_rx in LABEL_CLAIMS.items():
+        if labels[name]["required"] or not re.search(claim_rx, draft, re.I):
+            continue
+        labels[name]["invented"] = True
+        failures.append({"type": "INVENTED-LABEL", "token": name,
+                         "detail": f"draft asserts {name} but the evidence never carries it — "
+                                   f"a false caveat is a false claim, same class as a false number"})
 
     directional = []
-    for sent in re.split(r"(?<=[.!?])\s+", draft):
-        if _ATTRIB_RX.search(sent) and _DIRECTIONAL_RX.search(sent):
-            s_tokens, s_dates, s_years = _extract(sent, wide_evidence=False)
-            bound = all((tk["unit"] and (tk["value"], tk["unit"]) in ev_pairs)
-                        or (not tk["unit"] and (tk["value"] in ev_values or tk["value"] in ev_years))
-                        for tk in s_tokens)
-            directional.append({"sentence": sent.strip()[:300], "numbers_bound": bound})
+    sents = re.split(r"(?<=[.!?])\s+", draft)
+    _ext_cache: dict[int, tuple] = {}
+
+    def _sent_nums(i: int):
+        if i not in _ext_cache:
+            tk, dd, yy = _extract(sents[i], wide_evidence=False)
+            _ext_cache[i] = (tk, bool(tk or dd or yy))
+        return _ext_cache[i]
+
+    for i, sent in enumerate(sents):
+        if not (_ATTRIB_RX.search(sent) and _DIRECTIONAL_RX.search(sent)):
+            continue
+        s_tokens, has_own_numbers = _sent_nums(i)
+        # scope gate: a directional sentence with NO numbers of its own is flagged only when an ADJACENT
+        # sentence makes an engine-attributed NUMERIC claim (the "upward drift" embellishment rides right
+        # next to the stat it embellishes); number-free narrative framing with number-free neighbors is
+        # editorial voice, not a checkable claim.
+        if not has_own_numbers:
+            if not any(_ATTRIB_RX.search(sents[j]) and _sent_nums(j)[1]
+                       for j in (i - 1, i + 1) if 0 <= j < len(sents)):
+                continue
+        bound = all((tk["unit"] and (tk["value"], tk["unit"]) in ev_pairs)
+                    or (not tk["unit"] and (tk["value"] in ev_values or tk["value"] in ev_years))
+                    for tk in s_tokens)
+        directional.append({"sentence": sent.strip()[:300], "numbers_bound": bound})
 
     return {"passed": not failures, "failures": failures, "labels": labels,
             "numeric": numeric, "directional": directional}
