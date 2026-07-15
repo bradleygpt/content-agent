@@ -27,6 +27,7 @@ def _summary(d: dict) -> dict:
             "fidelity_passed": d["fidelity"].get("passed"),
             "n_failures": len(d["fidelity"].get("failures", [])),
             "n_flags": len(d["fidelity"].get("directional", [])),
+            "n_charts": len(d.get("charts", [])),
             "study": d["provenance"].get("study_key"), "trigger": (d.get("trigger") or {}).get("trigger")}
 
 
@@ -57,6 +58,23 @@ def drafts():
 def draft(did):
     d = qs.get_draft(did)
     return (jsonify(d), 200) if d else (jsonify({"error": "not found"}), 404)
+
+
+@app.get("/api/content/drafts/<did>/chart/<int:idx>")
+def draft_chart(did, idx):
+    """Serve an attached chart PNG (deterministic render) for the /drafts thumbnails. Path is validated to
+    stay inside the charts dir (no traversal)."""
+    from pathlib import Path as _P
+    from flask import send_file, abort
+    d = qs.get_draft(did)
+    charts = (d or {}).get("charts", [])
+    if not d or idx < 0 or idx >= len(charts):
+        abort(404)
+    p = _P(charts[idx]["path"]).resolve()
+    charts_root = (ROOT / "out" / "charts").resolve()
+    if charts_root not in p.parents or not p.exists():
+        abort(404)
+    return send_file(str(p), mimetype="image/png")
 
 
 @app.post("/api/content/drafts/<did>/approve")

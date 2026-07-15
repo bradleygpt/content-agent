@@ -3,3 +3,8 @@ Flask==3.1.3
 python-substack==0.1.25
 requests==2.34.2
 substack-api==1.3.0
+# chart module (content_agent/charts.py) — deterministic CPU-only render path, no GPU/model.
+# matplotlib draws; pandas+pyarrow read markets-llm's anchor price parquet (read-only) for the overlay.
+matplotlib==3.11.0
+pandas==3.0.3
+pyarrow==25.0.0

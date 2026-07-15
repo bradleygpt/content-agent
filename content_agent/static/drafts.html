@@ -22,6 +22,8 @@
   .failed_fidelity{color:var(--bad);border-color:#5b2320}
   .body{display:none;border-top:1px solid var(--bd);padding:12px}
   .card.open .body{display:block}
+  .charts{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+  .chart{width:100%;max-width:520px;border:1px solid var(--bd);border-radius:8px;background:#fff;display:block}
   .piece{font-size:14.5px;line-height:1.65;margin-bottom:10px} .piece strong{color:#fff}
   .piece h1,.piece h2,.piece h3{font-size:15px;margin:10px 0 4px}
   .sec{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:12px 0 4px}
@@ -79,7 +81,12 @@ function card(s){
   let body="";
   if(open.has(s.id)&&d){
     const pub=d.review&&d.review.publish?`<div class="note good">published via ${esc(d.review.publish.mode)} — ${esc(d.review.publish.detail||"")} ${esc(d.review.publish.url_or_path||"")}</div>`:"";
+    const charts=(d.charts||[]).map((c,i)=>
+      `<a href="/api/content/drafts/${d.id}/chart/${i}?token=${encodeURIComponent(TOKEN)}" target="_blank">
+         <img class="chart" src="/api/content/drafts/${d.id}/chart/${i}?token=${encodeURIComponent(TOKEN)}"
+              alt="${esc(c.template||'chart')}" title="${esc(c.template||'chart')} — tap to enlarge"></a>`).join("");
     body=`<div class="body">
+      ${charts?`<div class="sec">chart${(d.charts||[]).length>1?'s':''} (rendered from the artifact, not the model)</div><div class="charts">${charts}</div>`:""}
       <div class="piece">${md(d.body_md)}</div>
       <div class="sec">provenance</div>
       <div class="prov">study: <b>${esc(d.provenance.study_key||"")}</b> · artifact: ${esc(d.provenance.artifact||"")}

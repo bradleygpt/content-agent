@@ -83,6 +83,41 @@ def list_drafts() -> list[dict]:
     return out
 
 
+OUTBOX = ROOT / "out" / "publish_outbox"
+
+
+def _copy_charts_to_outbox(d: dict, stem: str) -> list[str]:
+    """Copy a draft's attached chart PNGs into the outbox alongside its md/html, so a screenshot-away
+    chart still travels with its published bundle. Returns the outbox chart paths."""
+    import shutil
+    copied = []
+    for i, c in enumerate(d.get("charts", []), 1):
+        src = Path(c["path"])
+        if src.exists():
+            dst = OUTBOX / f"{stem}_chart{i}_{src.name}"
+            OUTBOX.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+            copied.append(str(dst))
+    return copied
+
+
+def attach_charts(did: str, charts: list[dict]) -> dict:
+    """Attach chart(s) to a draft. charts: [{template, path, ...structural metadata}]. If the draft is
+    ALREADY published, also copy the charts into the outbox now (so an approved piece can gain its chart)."""
+    with _LOCK:
+        d = get_draft(did)
+        if not d:
+            raise KeyError(did)
+        d["charts"] = charts
+        if d.get("status") == "published":
+            stem = Path((d.get("review", {}).get("publish", {}) or {}).get("url_or_path", did)).stem or did
+            d.setdefault("review", {}).setdefault("publish", {})["charts_outbox"] = \
+                _copy_charts_to_outbox(d, stem)
+        save_draft(d)
+        log("charts_attached", id=did, n=len(charts), status=d.get("status"))
+        return d
+
+
 def approve(did: str, edit_class: str, adapter) -> dict:
     """edit_class: none | taste | correctness. Publishes via the adapter (manual fallback renders for
     paste). Returns the updated draft; raises on ineligible drafts."""
@@ -102,6 +137,10 @@ def approve(did: str, edit_class: str, adapter) -> dict:
         d["status"] = "published"
         d["review"] = {"action": "approve", "edit_class": edit_class, "ts": _now(),
                        "publish": dict(res)}
+        # chart attachments land in the outbox next to the md/html on approve
+        if d.get("charts"):
+            stem = Path(str(res.get("url_or_path") or did)).stem or did
+            d["review"]["publish"]["charts_outbox"] = _copy_charts_to_outbox(d, stem)
         save_draft(d)
         st = load_state()
         if edit_class == "correctness":
