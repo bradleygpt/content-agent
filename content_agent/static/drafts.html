@@ -11,7 +11,13 @@
   *{box-sizing:border-box;-webkit-text-size-adjust:100%}
   body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;
        padding:max(12px,env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom))}
-  h1{font-size:16px;margin:2px 0 4px;font-weight:600}
+  h1{font-size:16px;margin:0;font-weight:600}
+  /* header row: title + link back to the thesis page. Both live on the SAME authenticated tunnel
+     (shared localStorage token), so a plain href works and no token rides the URL. */
+  .hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0 4px}
+  .hdr a{font-size:13px;color:var(--dim);text-decoration:none;border:1px solid var(--bd);
+         border-radius:999px;padding:4px 12px;background:var(--panel)}
+  .hdr a:active{color:var(--fg)}
   .streak{font-size:12px;color:var(--dim);margin-bottom:10px}
   .streak b{color:var(--accent)} .streak .on{color:var(--good)} .streak .off{color:var(--dim)}
   .card{background:var(--panel);border:1px solid var(--bd);border-radius:12px;margin:10px 0;overflow:hidden}
@@ -39,7 +45,7 @@
 </style>
 </head>
 <body>
-<h1>📝 Content Queue</h1>
+<div class="hdr"><h1>📝 Content Queue</h1><a href="/m">📈 Thesis</a></div>
 <div class="streak" id="streak">loading…</div>
 <div id="list"></div>
 <script>
