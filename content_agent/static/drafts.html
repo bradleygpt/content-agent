@@ -115,11 +115,12 @@ function actions(d){
       <button class="warn" onclick="act('${d.id}','approve',{edit_class:'correctness'})">Approve (correctness edit — resets streak)</button>`
       :`<button class="ok" onclick="act('${d.id}','approve',{edit_class:'none'})">Approve</button>`;
     return ec+`<button onclick="editToggle('${d.id}')">Edit</button>
-      <button class="no" onclick="rejectDraft('${d.id}')">Reject</button>`;
+      <button onclick="rejectDraft('${d.id}',false)">Reject (neutral)</button>
+      <button class="no" onclick="rejectDraft('${d.id}',true)">Reject: factually wrong (resets streak)</button>`;
   }
   if(d.status==="failed_fidelity")
     return `<button onclick="editToggle('${d.id}')">Edit (must pass fidelity before approve)</button>
-      <button class="no" onclick="rejectDraft('${d.id}')">Reject</button>`;
+      <button onclick="rejectDraft('${d.id}',false)">Reject (neutral)</button>`;
   if(d.status==="published")
     return `<button class="no" onclick="correction('${d.id}')">Log factual correction (tripwire)</button>`;
   return "";
@@ -138,7 +139,12 @@ window.editToggle=id=>{
   else { const b=$("sv-"+id); if(b) b.remove(); }
 };
 window.saveEdit=async id=>{ await act(id,"edit",{body_md:$("ed-"+id).value}); };
-window.rejectDraft=async id=>{ const r=prompt("Reject reason (optional)")||""; await act(id,"reject",{reason:r}); };
+window.rejectDraft=async (id,factuallyWrong)=>{
+  const r=prompt(factuallyWrong
+    ? "This draft PASSED fidelity but you're rejecting it as factually wrong — this RESETS the streak. Reason:"
+    : "Reject reason (optional) — this is neutral, it won't affect the streak:")||"";
+  await act(id,"reject",{reason:r,factually_wrong:!!factuallyWrong});
+};
 window.correction=async id=>{
   const n=prompt("Describe the factual correction (this reverts autonomy + resets the streak)")||"";
   if(n!==null) await act(id,"correction",{note:n});

@@ -1,9 +1,14 @@
 """Review-queue persistence + the autonomy flag (ships OFF; flip criteria in code, not vibes).
 
-Streak rules (encoded, visible in the UI):
+Streak rules (encoded, visible in the UI) — a streak is CONSECUTIVE trustworthy approvals; only a genuine
+quality failure breaks it, never routine housekeeping (rule revised 2026-07-15):
   - Approve with edit_class in (none, taste)  -> streak += 1   (taste edits don't count against)
-  - Approve with edit_class == correctness    -> streak = 0    (correctness edits reset)
-  - Reject                                    -> streak = 0    (breaks "consecutive approvals")
+  - Approve with edit_class == correctness    -> streak = 0    (the checker/reviewer had to fix a fact)
+  - Reject (ordinary)                         -> NEUTRAL       (stale/duplicate/not-wanted cleanup must
+                                                                not punish the streak)
+  - Reject a FIDELITY-PASSING draft as FACTUALLY WRONG -> streak = 0  (the residual failure the checker
+                                                                cannot catch — a real trust signal; set
+                                                                via reject(..., factually_wrong=True))
   - streak >= required_streak (config, 12)    -> autonomy flips ON automatically, logged
   - TRIPWIRE: a post-publication factual correction -> autonomy OFF + streak 0, logged
 FAILED-FIDELITY drafts cannot be approved (server enforces Edit -> re-check -> pass first).
@@ -163,18 +168,28 @@ def approve(did: str, edit_class: str, adapter) -> dict:
         return d
 
 
-def reject(did: str, reason: str) -> dict:
+def reject(did: str, reason: str, factually_wrong: bool = False) -> dict:
+    """Ordinary rejection is streak-NEUTRAL (housekeeping — stale/duplicate/not-wanted — must not punish
+    the streak). Pass factually_wrong=True ONLY when rejecting a draft the checker PASSED that is
+    nonetheless wrong (a false claim/label, a bad read): that is the residual failure the checker cannot
+    catch, so it resets the streak. A factually_wrong reject of a draft that never passed fidelity stays
+    neutral — the checker already caught it; nothing new was learned about the pipeline's trustworthiness."""
     with _LOCK:
         d = get_draft(did)
         if not d:
             raise KeyError(did)
+        was_fidelity_passing = bool((d.get("fidelity") or {}).get("passed"))
         d["status"] = "rejected"
-        d["review"] = {"action": "reject", "reason": reason, "ts": _now()}
+        d["review"] = {"action": "reject", "reason": reason, "ts": _now(),
+                       "factually_wrong": bool(factually_wrong)}
         save_draft(d)
+        reset = bool(factually_wrong) and was_fidelity_passing
         st = load_state()
-        st["streak"] = 0
-        save_state(st)
-        log("rejected", id=did, reason=reason, streak=0)
+        if reset:
+            st["streak"] = 0
+            save_state(st)
+        log("rejected", id=did, reason=reason, factually_wrong=bool(factually_wrong),
+            streak_reset=reset, streak=st["streak"])
         return d
 
 

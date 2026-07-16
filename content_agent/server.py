@@ -92,7 +92,7 @@ def approve(did):
 def reject(did):
     body = request.get_json(silent=True) or {}
     try:
-        d = qs.reject(did, body.get("reason", ""))
+        d = qs.reject(did, body.get("reason", ""), factually_wrong=bool(body.get("factually_wrong")))
         return jsonify({"ok": True, "status": d["status"]})
     except KeyError as e:
         return jsonify({"error": str(e)}), 404
