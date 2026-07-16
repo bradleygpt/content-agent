@@ -20,6 +20,8 @@
   .hdr a:active{color:var(--fg)}
   .streak{font-size:12px;color:var(--dim);margin-bottom:10px}
   .streak b{color:var(--accent)} .streak .on{color:var(--good)} .streak .off{color:var(--dim)}
+  .streak .elig{color:var(--warn)}
+  .streak button{padding:3px 10px;font-size:12px;margin-left:6px;border-color:#245b33;border-radius:8px}
   .card{background:var(--panel);border:1px solid var(--bd);border-radius:12px;margin:10px 0;overflow:hidden}
   .head{padding:11px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;cursor:pointer}
   .t{font-size:14px;font-weight:600;flex:1} .meta{font-size:11px;color:var(--dim)}
@@ -139,6 +141,13 @@ window.editToggle=id=>{
   else { const b=$("sv-"+id); if(b) b.remove(); }
 };
 window.saveEdit=async id=>{ await act(id,"edit",{body_md:$("ed-"+id).value}); };
+window.enableAutonomy=async()=>{
+  if(!confirm("Enable autonomy? Fidelity-PASSING drafts will publish WITHOUT per-piece review from the "+
+              "next daily pass on. The factual-correction tripwire still reverts it. Enable?")) return;
+  const r=await api("autonomy/enable",{method:"POST",body:"{}"});
+  if(r.error) alert("enable failed: "+r.error);
+  load();
+};
 window.rejectDraft=async (id,factuallyWrong)=>{
   const r=prompt(factuallyWrong
     ? "This draft PASSED fidelity but you're rejecting it as factually wrong — this RESETS the streak. Reason:"
@@ -158,8 +167,11 @@ function render(){
 async function load(){
   try{
     const [st,dr]=await Promise.all([api("state"),api("drafts")]);
-    $("streak").innerHTML=`streak <b>${st.streak}/${st.required_streak}</b> · autonomy `+
-      (st.autonomy_enabled?`<span class="on">ON</span>`:`<span class="off">OFF (per-piece review)</span>`)+
+    const auto = st.autonomy_enabled ? `<span class="on">ON</span>`
+      : st.autonomy_eligible ? `<span class="elig">eligible</span>`+
+        `<button class="ok" onclick="enableAutonomy()">enable autonomy?</button>`
+      : `<span class="off">OFF (per-piece review)</span>`;
+    $("streak").innerHTML=`streak <b>${st.streak}/${st.required_streak}</b> · autonomy `+auto+
       ` · publisher: ${esc(st.adapter)}`;
     drafts=dr.drafts||[];
     for(const id of open) if(!cache[id]) cache[id]=await api("drafts/"+id);

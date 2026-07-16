@@ -1,6 +1,8 @@
-"""Streak-rule self-test — hermetic (temp queue/state; NEVER touches the live queue). Locks the 2026-07-15
-rule: ordinary rejects are neutral; only correctness edits, post-pub corrections, and factually-wrong
-rejects of fidelity-passing drafts reset.
+"""Streak-rule + autonomy self-test — hermetic (temp queue/state; NEVER touches the live queue). Locks:
+  - the 2026-07-15 streak rule: ordinary rejects are neutral; only correctness edits, post-pub
+    corrections, and factually-wrong rejects of fidelity-passing drafts reset;
+  - the 2026-07-16 autonomy rule: crossing the streak threshold makes autonomy ELIGIBLE, never ON —
+    only the explicit enable_autonomy() confirm flips it, and the tripwire still reverts it.
 
   .venv/Scripts/python.exe scripts/streak_rule_selftest.py
 """
@@ -78,7 +80,40 @@ def main():
     qs.approve(d["id"], "correctness", _Adapter())
     check("correctness approval RESETS (0)", streak() == 0)
 
-    print("STREAK-RULE SELF-TEST (hermetic temp state; live queue untouched)\n")
+    # --- autonomy: unlock-then-confirm (threshold patched to 2 for the test) ------------------------
+    qs.CFG = {**qs.CFG, "autonomy": {**qs.CFG["autonomy"], "required_streak": 2}}
+
+    def enabled():
+        return qs.load_state()["autonomy_enabled"]
+
+    try:
+        qs.enable_autonomy()
+        check("enable below threshold raises", False)
+    except ValueError:
+        check("enable below threshold raises", True)
+    qs.approve(mk()["id"], "none", _Adapter())
+    check("below threshold: not eligible", not qs.autonomy_eligible())
+    qs.approve(mk()["id"], "none", _Adapter())
+    check("crossing threshold does NOT enable autonomy", streak() == 2 and not enabled())
+    check("crossing threshold makes it ELIGIBLE", qs.autonomy_eligible())
+    audit = (qs.AUDIT.read_text(encoding="utf-8"))
+    check("eligibility crossing is logged", '"event": "autonomy_eligible"' in audit)
+    st = qs.enable_autonomy()
+    check("explicit confirm enables", st["autonomy_enabled"] and enabled())
+    check("enabled -> no longer 'eligible'", not qs.autonomy_eligible())
+    try:
+        qs.enable_autonomy()
+        check("double-enable raises", False)
+    except ValueError:
+        check("double-enable raises", True)
+    # tripwire still reverts explicit enablement
+    d = mk()
+    qs.approve(d["id"], "none", _Adapter())
+    qs.factual_correction(d["id"], "post-pub factual error")
+    check("tripwire reverts autonomy + streak", not enabled() and streak() == 0)
+    check("after tripwire: not eligible again until threshold re-crossed", not qs.autonomy_eligible())
+
+    print("STREAK-RULE + AUTONOMY SELF-TEST (hermetic temp state; live queue untouched)\n")
     for good, name in checks:
         print(f"  {'OK ' if good else 'XX '} {name}")
     passed = sum(g for g, _ in checks)

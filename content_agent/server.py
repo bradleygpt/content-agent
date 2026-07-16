@@ -46,7 +46,18 @@ def state():
     st = qs.load_state()
     return jsonify({"streak": st["streak"], "required_streak": CFG["autonomy"]["required_streak"],
                     "autonomy_enabled": st["autonomy_enabled"],
+                    "autonomy_eligible": qs.autonomy_eligible(st),
                     "adapter": get_adapter(CFG).name})
+
+
+@app.post("/api/content/autonomy/enable")
+def autonomy_enable():
+    """The explicit confirm of unlock-then-confirm — eligibility never enables autonomy by itself."""
+    try:
+        st = qs.enable_autonomy()
+        return jsonify({"ok": True, "autonomy_enabled": st["autonomy_enabled"], "streak": st["streak"]})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.get("/api/content/drafts")

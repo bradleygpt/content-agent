@@ -9,7 +9,9 @@ quality failure breaks it, never routine housekeeping (rule revised 2026-07-15):
   - Reject a FIDELITY-PASSING draft as FACTUALLY WRONG -> streak = 0  (the residual failure the checker
                                                                 cannot catch — a real trust signal; set
                                                                 via reject(..., factually_wrong=True))
-  - streak >= required_streak (config, 12)    -> autonomy flips ON automatically, logged
+  - streak >= required_streak (config, 12)    -> autonomy becomes ELIGIBLE (logged) — it NEVER flips on
+                                                 automatically; Bradley enables it explicitly via
+                                                 enable_autonomy() (unlock-then-confirm, 2026-07-16)
   - TRIPWIRE: a post-publication factual correction -> autonomy OFF + streak 0, logged
 FAILED-FIDELITY drafts cannot be approved (server enforces Edit -> re-check -> pass first).
 """
@@ -148,6 +150,7 @@ def approve(did: str, edit_class: str, adapter) -> dict:
             d["review"]["publish"]["charts_outbox"] = _copy_charts_to_outbox(d, stem)
         save_draft(d)
         st = load_state()
+        prev_streak = st["streak"]
         if edit_class == "correctness":
             st["streak"] = 0
         else:
@@ -158,14 +161,41 @@ def approve(did: str, edit_class: str, adapter) -> dict:
               f"{d['provenance'].get('study_key')}"
         if sid not in st["published_study_ids"]:
             st["published_study_ids"].append(sid)
-        flipped = False
-        if (not st["autonomy_enabled"]) and st["streak"] >= CFG["autonomy"]["required_streak"]:
-            st["autonomy_enabled"] = True
-            flipped = True
+        # UNLOCK-THEN-CONFIRM (2026-07-16): crossing the threshold makes autonomy ELIGIBLE — it never
+        # flips on here. The /drafts UI surfaces eligibility and Bradley confirms via enable_autonomy().
+        crossed = (not st["autonomy_enabled"]) \
+            and prev_streak < CFG["autonomy"]["required_streak"] \
+            and st["streak"] >= CFG["autonomy"]["required_streak"]
         save_state(st)
+        if crossed:
+            log("autonomy_eligible", streak=st["streak"],
+                required=CFG["autonomy"]["required_streak"])
         log("approved", id=did, edit_class=edit_class, streak=st["streak"],
-            publish_mode=res.get("mode"), autonomy_flipped=flipped)
+            publish_mode=res.get("mode"), autonomy_eligible=autonomy_eligible(st))
         return d
+
+
+def autonomy_eligible(st: dict | None = None) -> bool:
+    """Eligibility is DERIVED, never stored: streak at/over threshold and autonomy not already on."""
+    st = st or load_state()
+    return (not st["autonomy_enabled"]) and st["streak"] >= CFG["autonomy"]["required_streak"]
+
+
+def enable_autonomy() -> dict:
+    """The explicit confirm of unlock-then-confirm — the ONLY code path that turns autonomy on. Callable
+    only while eligible; raises otherwise so a UI race (e.g. a tripwire firing between render and click)
+    can never enable it. The factual-correction tripwire still reverts it."""
+    with _LOCK:
+        st = load_state()
+        if st["autonomy_enabled"]:
+            raise ValueError("autonomy is already enabled")
+        if st["streak"] < CFG["autonomy"]["required_streak"]:
+            raise ValueError(f"not eligible: streak {st['streak']} < "
+                             f"required {CFG['autonomy']['required_streak']}")
+        st["autonomy_enabled"] = True
+        save_state(st)
+        log("autonomy_enabled", streak=st["streak"], via="explicit_confirm")
+        return st
 
 
 def reject(did: str, reason: str, factually_wrong: bool = False) -> dict:
