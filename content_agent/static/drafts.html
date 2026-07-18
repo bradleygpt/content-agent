@@ -56,7 +56,9 @@ const usp=new URLSearchParams(location.search);
 let TOKEN=usp.get("token")||localStorage.getItem("mtk")||"";
 if(usp.get("token")){ localStorage.setItem("mtk",TOKEN); history.replaceState(null,"",location.pathname); }
 const H={"Content-Type":"application/json","Authorization":"Bearer "+TOKEN,"ngrok-skip-browser-warning":"1"};
-const api=(p,opt)=>fetch(`/api/content/${p}${p.includes("?")?"&":"?"}token=${encodeURIComponent(TOKEN)}`,
+// header-only auth (DEFERRED #7): Authorization rides in H; a ?token= in the URL lands in HTTP-layer
+// logs. The chart <img>/<a> are the ONE sanctioned query-token exception (markup can't send headers).
+const api=(p,opt)=>fetch(`/api/content/${p}`,
                           Object.assign({headers:H},opt||{})).then(r=>r.json());
 const esc=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const md=s=>esc(s).replace(/^### (.*)$/gm,"<h3>$1</h3>").replace(/^## (.*)$/gm,"<h2>$1</h2>")

@@ -20,6 +20,28 @@ ROOT = Path(__file__).resolve().parent.parent
 CFG = json.loads((ROOT / "config" / "config.json").read_text(encoding="utf-8"))
 app = Flask(__name__)
 
+# Minimal access log (DEFERRED #7): this server runs under pythonw (stdout discarded), so werkzeug's
+# request log never survives — during the 2026-07-15 exposure assessment nothing here was reconstructable.
+# Append-only JSONL of every 4xx/5xx; path only (request.path carries no query string; tokens never reach
+# a log). state/ is local-only (gitignored), same home as the audit log.
+_ACCESS_LOG = ROOT / "state" / "access_log.jsonl"
+
+
+@app.after_request
+def _log_access(resp):
+    try:
+        if resp.status_code >= 400:
+            import datetime as _dt
+            _ACCESS_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with _ACCESS_LOG.open("a", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "t": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+                    "m": request.method, "p": request.path, "s": resp.status_code,
+                    "auth_fail": resp.status_code in (401, 403)}) + "\n")
+    except Exception:
+        pass                                              # logging must never break serving
+    return resp
+
 
 def _summary(d: dict) -> dict:
     return {"id": d["id"], "created": d["created"], "kind": d["kind"], "title": d["title"],
