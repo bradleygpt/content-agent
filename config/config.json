@@ -1,7 +1,7 @@
 {
   "markets_llm_root": "C:/Users/bmhar/code/markets-llm",
   "publisher": {
-    "_POLICY": "Launch publish policy — RATIFIED 2026-07-15 (docs/DECISIONS/0001-manual-publish-policy.md). adapter='manual': the launch path is the outbox (render md+html for Bradley to paste). programmatic_notes_enabled=false is PERMANENT — Notes automation is never load-bearing and is never attempted (spoofed-header writes to undocumented endpoints are off the table; posting one is what got the account suspended 2026-07-14). programmatic_draft_creation_allowed=false FOR NOW but MAY be revisited post-appeal — draft creation is a quiet non-publishing write that drew no enforcement; flip it (and adapter to 'auto') only per the doc's conditions.",
+    "_POLICY": "Launch publish policy \u2014 RATIFIED 2026-07-15 (docs/DECISIONS/0001-manual-publish-policy.md). adapter='manual': the launch path is the outbox (render md+html for Bradley to paste). programmatic_notes_enabled=false is PERMANENT \u2014 Notes automation is never load-bearing and is never attempted (spoofed-header writes to undocumented endpoints are off the table; posting one is what got the account suspended 2026-07-14). programmatic_draft_creation_allowed=false FOR NOW but MAY be revisited post-appeal \u2014 draft creation is a quiet non-publishing write that drew no enforcement; flip it (and adapter to 'auto') only per the doc's conditions.",
     "adapter": "manual",
     "publication_name": "Akribeia Insights",
     "publication_url": "https://akribeiainsights.substack.com",
@@ -12,11 +12,17 @@
   "drafting": {
     "model": "gemma3:12b-it-q4_K_M",
     "ollama_url": "http://localhost:11434",
-    "flagship_words": [800, 1200],
+    "flagship_words": [
+      800,
+      1200
+    ],
     "notes_per_flagship": 3
   },
   "triggers": {
-    "calendar_windows_weeks": {"midterm_election": 16, "pres_election": 16},
+    "calendar_windows_weeks": {
+      "midterm_election": 16,
+      "pres_election": 16
+    },
     "cadence_days": 7
   },
   "news_feeds": [
@@ -24,11 +30,28 @@
     "https://www.cnbc.com/id/100003114/device/rss/rss.html",
     "https://feeds.content.dowjones.io/public/rss/mw_topstories"
   ],
-  "gpu": {"free_mib_max_used": 1500, "attempts": 6, "sleep_seconds": 600},
-  "server": {"host": "127.0.0.1", "port": 8799},
+  "gpu": {
+    "free_mib_max_used": 1500,
+    "attempts": 6,
+    "sleep_seconds": 600
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8799
+  },
   "autonomy": {
     "enabled": false,
     "required_streak": 12,
     "note": "flip criteria live in queue_store.py: >=required_streak consecutive approvals with zero correctness edits; correctness edit resets; post-publication factual correction auto-reverts enabled to false"
+  },
+  "research": {
+    "enabled": true,
+    "max_papers": 12,
+    "categories": [
+      "q-fin.GN",
+      "q-fin.PM",
+      "q-fin.ST",
+      "q-fin.TR"
+    ]
   }
 }

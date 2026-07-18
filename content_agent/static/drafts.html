@@ -28,6 +28,7 @@
   .pill{font-size:10.5px;border-radius:999px;padding:2px 8px;border:1px solid var(--bd);white-space:nowrap}
   .pending{color:var(--accent)} .published{color:var(--good)} .rejected{color:var(--dim)}
   .failed_fidelity{color:var(--bad);border-color:#5b2320}
+  .review_item{color:var(--eng);border-color:#3a2f52}
   .body{display:none;border-top:1px solid var(--bd);padding:12px}
   .card.open .body{display:block}
   .charts{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
@@ -127,6 +128,8 @@ function actions(d){
       <button onclick="rejectDraft('${d.id}',false)">Reject (neutral)</button>`;
   if(d.status==="published")
     return `<button class="no" onclick="correction('${d.id}')">Log factual correction (tripwire)</button>`;
+  if(d.status==="review_item")   // research verdicts (register #6 C-1): review-only, never publishable
+    return `<button onclick="rejectDraft('${d.id}',false)">Dismiss (neutral)</button>`;
   return "";
 }
 

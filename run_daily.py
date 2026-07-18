@@ -85,7 +85,26 @@ def main():
     ap.add_argument("--topic", default=None, help="editorial framing override for the flagship")
     ap.add_argument("--skip-notes", action="store_true")
     ap.add_argument("--notes-only", action="store_true")
+    ap.add_argument("--research-only", action="store_true",
+                    help="run ONLY the hypothesis-intake nightly (register #6 C-1)")
     args = ap.parse_args()
+
+    # RESEARCH-ONLY shortcut (register #6 C-1): the hypothesis nightly without any drafting.
+    if args.research_only:
+        _ensure_queue_server()
+        gcfg = CFG["gpu"]
+        free = gpu_free_for_drafting()[0] if args.now else wait_for_gpu(gcfg["attempts"],
+                                                                        gcfg["sleep_seconds"])
+        if not free:
+            print("[daily] GPU never freed — research nightly yields; tomorrow retries")
+            return
+        from content_agent.hypotheses import run_nightly
+        print("[daily] research nightly (arXiv q-fin intake)...")
+        s = run_nightly()
+        print(f"[daily] research: {s['papers']} papers, {s['tickets']} tickets "
+              f"({s['no_claim']} no-claim), {s['testable']} testable / {s['untestable']} untestable / "
+              f"{s['unverified']} unverified; verdicts: {s['verdicts']}")
+        return
 
     _ensure_queue_server()
     st = qs.load_state()
@@ -143,6 +162,18 @@ def main():
             nt = _fidelity_gated(draft_note, ev_check, evidence=ev["evidence"], stat_focus=focus)
             nd = qs.new_draft("note", nt["title"], nt["body_md"], prov, nt["fidelity"], ev_check, trig)
             print(f"[daily]   note {nd['id']} -> {nd['status']}")
+
+    # RESEARCH NIGHTLY (register #6 C-1) — runs AFTER draft work, lowest priority: only if enabled and
+    # the GPU is STILL free (a co-tenant that arrived during drafting wins; tomorrow retries).
+    if CFG.get("research", {}).get("enabled") and gpu_free_for_drafting()[0]:
+        from content_agent.hypotheses import run_nightly
+        print("[daily] research nightly (arXiv q-fin intake)...")
+        try:
+            s = run_nightly()
+            print(f"[daily] research: {s['papers']} papers, {s['tickets']} tickets, "
+                  f"{s['testable']} testable / {s['untestable']} untestable / {s['unverified']} unverified")
+        except Exception as e:                       # research must never break the content pass
+            print(f"[daily] research nightly failed (non-fatal): {e}")
 
     # autonomy (ships OFF): only fidelity-PASSING drafts, only when the flag is on
     if qs.load_state()["autonomy_enabled"]:

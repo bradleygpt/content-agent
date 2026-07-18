@@ -69,6 +69,25 @@ def new_draft(kind: str, title: str, body_md: str, provenance: dict, fidelity: d
     return d
 
 
+def new_research_item(title: str, body_md: str, payload: dict) -> dict:
+    """Register #6 C-1: a hypothesis-intake REVIEW ITEM — never a publishable draft. status='review_item'
+    means approve() can never touch it (it requires 'pending'), so no research item can reach the outbox
+    or the streak; reject() still works for dismissal (streak-NEUTRAL under the 2026-07-15 rule)."""
+    QUEUE.mkdir(parents=True, exist_ok=True)
+    did = dt.datetime.now().strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6]
+    d = {"id": did, "created": _now(), "kind": "research", "title": title, "body_md": body_md,
+         "provenance": {"study_key": None, "artifact": "hypothesis-intake (arXiv metadata)"},
+         "fidelity": {"passed": None, "failures": [], "labels": {}, "numeric": [], "directional": []},
+         "evidence": "", "trigger": {"trigger": "research_nightly"}, "edited": False,
+         "status": "review_item", "research": payload, "review": None}
+    (QUEUE / f"{did}.json").write_text(json.dumps(d, indent=2, ensure_ascii=False), encoding="utf-8")
+    log("research_item_created", id=did,
+        verdict=((payload.get("result") or {}).get("verdict") if payload.get("result") else None),
+        testable=bool((payload.get("triage") or {}).get("testable")),
+        verified=bool((payload.get("consistency") or {}).get("verified")))
+    return d
+
+
 def get_draft(did: str) -> dict | None:
     p = QUEUE / f"{did}.json"
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
