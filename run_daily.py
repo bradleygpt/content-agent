@@ -41,6 +41,29 @@ def _fidelity_gated(make, evidence_text: str, **kw) -> dict:
     return d
 
 
+def duplicate_pending(study_id: str, drafts: list | None = None) -> int:
+    """PENDING publishable drafts already queued for this study — the trigger's memory lives in the
+    queue. Pure/injectable so the dedup guard is testable without touching the live queue."""
+    drafts = qs.list_drafts() if drafts is None else drafts
+    return sum(1 for d in drafts
+               if d.get("status") == "pending" and d.get("kind") in ("flagship", "note")
+               and (d.get("provenance") or {}).get("study_id") == study_id)
+
+
+def days_since_last_draft(study_id: str, drafts: list | None = None, now: dt.datetime | None = None):
+    """Days since this study was LAST drafted, whatever became of that draft (approved, rejected, still
+    pending). None if never. Rejected drafts count: a study cleared as redundant must not be redrafted
+    the very next pass — that is the loop this guard exists to break."""
+    drafts = qs.list_drafts() if drafts is None else drafts
+    now = now or dt.datetime.now()
+    stamps = [d["created"] for d in drafts
+              if d.get("kind") in ("flagship", "note")
+              and (d.get("provenance") or {}).get("study_id") == study_id and d.get("created")]
+    if not stamps:
+        return None
+    return (now - dt.datetime.fromisoformat(max(stamps))).total_seconds() / 86400.0
+
+
 def _note_focuses(study_id: str) -> list[str]:
     if study_id.startswith("sector_event:midterm"):
         return ["the SPREAD between the deepest sector (semiconductors, median -27.0%) and the shallowest "
@@ -122,6 +145,32 @@ def main():
             return
         trig = trigs[0]
     print(f"[daily] trigger: {trig['trigger']} -> {trig['study_id']} ({trig.get('topic','')[:80]})")
+
+    # DEDUP GUARD (2026-07-23). calendar_triggers fires EVERY day the event sits inside its countdown
+    # window and has no memory of what it already produced — unlike cadence_trigger, which skips studies
+    # in published_study_ids. That asymmetry generated 25 near-identical midterm drafts over 8 days
+    # (07-16..07-23) on a study that was ALREADY published. The queue is the memory: if this study still
+    # has unreviewed drafts waiting, another pass adds noise, not coverage. Clearing the queue lets the
+    # next pass regenerate fresh (with an updated weeks_out).
+    cooldown = CFG["triggers"].get("redraft_cooldown_days", 7)
+    since = days_since_last_draft(trig["study_id"])
+    if since is not None and since < cooldown:
+        print(f"[daily] SKIP: {trig['study_id']} was drafted {since:.1f}d ago "
+              f"(redraft_cooldown_days={cooldown}) — a countdown piece is meant to recur weekly, not "
+              f"daily; redrafting now would just restate the same measured study.")
+        qs.log("daily_skipped_cooldown", study_id=trig["study_id"], days_since=round(since, 2),
+               cooldown_days=cooldown, trigger=trig["trigger"])
+        return
+
+    max_pending = CFG["triggers"].get("max_pending_per_study", 3)
+    n_same = duplicate_pending(trig["study_id"])
+    if n_same >= max_pending:
+        print(f"[daily] SKIP: {trig['study_id']} already has {n_same} pending draft(s) "
+              f"awaiting review (max_pending_per_study={max_pending}) — regenerating would duplicate "
+              f"work already in the queue. Review or clear them and the next pass drafts fresh.")
+        qs.log("daily_skipped_duplicate", study_id=trig["study_id"], pending=n_same,
+               max_pending=max_pending, trigger=trig["trigger"])
+        return
 
     ev = evidence_for(trig["study_id"])
     if not ev:

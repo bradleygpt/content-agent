@@ -23,7 +23,9 @@
       "midterm_election": 16,
       "pres_election": 16
     },
-    "cadence_days": 7
+    "cadence_days": 7,
+    "max_pending_per_study": 3,
+    "redraft_cooldown_days": 7
   },
   "news_feeds": [
     "https://www.federalreserve.gov/feeds/press_all.xml",
