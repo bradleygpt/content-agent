@@ -67,6 +67,43 @@ def main():
 
     check("no-claim ticket -> UNTESTABLE", not triage(_ticket("", "none", [], ""))["testable"])
 
+    # --- HYP-1: proxy substitution -----------------------------------------------------------------
+    # broad category (crypto -> BTC): TESTABLE, but with a disclosed PROXY-SUBSTITUTION caveat
+    subc = _ticket("crypto is inversely correlated with gold", "inverse", ["crypto", "gold"],
+                   "crypto is inversely correlated with gold")
+    tsc = triage(subc)
+    check("category substitution (crypto->BTC) stays TESTABLE with caveat",
+          tsc["testable"] and tsc["mode"] == "pair"
+          and tsc.get("proxy_caveat") and "PROXY-SUBSTITUTION" in tsc["proxy_caveat"])
+    # specific non-BTC coins the claim is ABOUT -> too large -> UNTESTABLE (never verdict a different asset)
+    subt = _ticket("gold is not more effective than Tether, Cardano and Dogecoin as a safe haven",
+                   "underperform", ["gold", "crypto-assets", "tether", "cardano", "dogecoin"],
+                   "gold has not been more efficient than cryptoassets (tether, cardano and dogecoin)")
+    tst = triage(subt)
+    check("too-large substitution (specific altcoins) -> UNTESTABLE",
+          (not tst["testable"]) and "too large" in tst["reason"] and "tether" in tst["reason"])
+    check("too-large reason is word-boundary clean (no 'eth' from 'tether')",
+          " eth," not in tst["reason"] and " ether," not in tst["reason"])
+    # exact asset (bitcoin) -> NO substitution caveat
+    sube = _ticket("bitcoin correlates with gold", "positive", ["bitcoin", "gold"],
+                   "bitcoin correlates with gold")
+    check("exact asset (bitcoin) -> no proxy caveat", triage(sube).get("proxy_caveat") is None)
+    # sector word -> sector ETF proxy is the DESIGNED representation, NOT flagged as substitution
+    subs = _ticket("semiconductor drawdowns recover fast", "none", ["semiconductors"],
+                   "semiconductor drawdowns recover fast")
+    check("sector word -> ETF proxy is not a substitution caveat",
+          triage(subs).get("proxy_caveat") is None)
+
+    # --- HYP-2: direction lexicon accepts semantic equivalents (verbatim requirement UNCHANGED) -----
+    for phrase, direction in [("delivers alpha (excess returns) over the benchmark", "outperform"),
+                              ("passive staking raises the token price", "positive"),
+                              ("the anomalies were useless to portfolio managers", "underperform")]:
+        cc = consistency_check(_ticket("x", direction, [], phrase), [])
+        check(f"lexicon equivalent verifies: '{direction}' via \"{phrase[:28]}…\"", cc["verified"])
+    # but a METHOD-quality claim must NOT pass as a market-direction claim
+    cm = consistency_check(_ticket("x", "outperform", [], "the model gives higher density scores"), [])
+    check("method-quality phrasing does NOT satisfy a market direction", not cm["verified"])
+
     # --- consistency check (hostile extraction) ------------------------------------------------------
     c1 = consistency_check(t, tri["mapped"])
     check("clean ticket verifies (assets + direction in quote)", c1["verified"])

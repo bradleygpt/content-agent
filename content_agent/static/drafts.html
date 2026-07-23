@@ -29,6 +29,13 @@
   .pending{color:var(--accent)} .published{color:var(--good)} .rejected{color:var(--dim)}
   .failed_fidelity{color:var(--bad);border-color:#5b2320}
   .review_item{color:var(--eng);border-color:#3a2f52}
+  details.research{margin:16px 0 6px;border-top:1px solid var(--bd);padding-top:10px}
+  details.research>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--eng);
+    list-style:none;padding:6px 2px;user-select:none}
+  details.research>summary::-webkit-details-marker{display:none}
+  details.research>summary::before{content:"▸ ";color:var(--dim)}
+  details.research[open]>summary::before{content:"▾ "}
+  details.research .rmeta{font-weight:400;color:var(--dim);font-size:11px}
   .body{display:none;border-top:1px solid var(--bd);padding:12px}
   .card.open .body{display:block}
   .charts{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
@@ -165,9 +172,20 @@ window.correction=async id=>{
 };
 
 let drafts=[];
+window.researchOpen=false;   // persists the research section's collapsed state across the 5s re-render
 function render(){
-  $("list").innerHTML = drafts.length? drafts.map(card).join("") :
-    `<div class="meta" style="margin-top:20px">no drafts yet — the daily pass fills this queue</div>`;
+  // HYP-3: research review_item cards (hypothesis intake) are NOT publishable — keep them out of the
+  // publishable queue so it stays readable. They collapse under one section, closed by default.
+  const pub=drafts.filter(d=>d.kind!=="research"), research=drafts.filter(d=>d.kind==="research");
+  let html = pub.length ? pub.map(card).join("")
+    : `<div class="meta" style="margin-top:20px">no publishable drafts — the daily pass fills this queue</div>`;
+  if(research.length){
+    html += `<details class="research" ${window.researchOpen?"open":""} ontoggle="window.researchOpen=this.open">`+
+            `<summary>🔬 Research review — ${research.length} hypothesis card${research.length>1?"s":""} `+
+            `<span class="rmeta">(review items · not publishable · dismiss-only)</span></summary>`+
+            research.map(card).join("")+`</details>`;
+  }
+  $("list").innerHTML = html;
 }
 async function load(){
   try{

@@ -123,6 +123,64 @@ _CROSS_SECTIONAL = ("cross-section", "cross section", "firm-level", "stock-level
                     "sorted portfolio", "characteristic", "factor premium", "anomaly", "long-short")
 _DIRECTIONAL_OK = ("positive", "negative", "inverse", "outperform", "underperform", "predicts")
 
+# ---- proxy-substitution taxonomy (HYP-1) --------------------------------------------------------------
+# An anchor's EXACT aliases ARE that asset. A CATEGORY alias is a broad class the single-instrument anchor
+# stands in for (BTC represents "crypto"). Sector-ETF anchors are OMITTED here on purpose: a sector word
+# mapping to its ETF proxy is the DESIGNED representation (already carried as SECTOR-PROXY), not a
+# substitution of a different asset. This map only covers single-instrument anchors, where standing in for
+# something else is a genuine substitution the card must disclose.
+_ANCHOR_EXACT = {
+    "ANCHOR_BTC": {"bitcoin", "btc"},
+    "ANCHOR_GOLD": {"gold", "bullion"},
+    "ANCHOR_SPY": {"spy", "s&p", "s&p500", "sp500", "spx", "s&p 500", "the market", "the markets",
+                   "stock market", "stock markets", "stocks", "equities", "equity", "markets",
+                   "equity market", "equity markets"},
+    "ANCHOR_NASDAQ": {"nasdaq", "nasdaq100", "nasdaq-100"},
+    "ANCHOR_OIL_WTI": {"oil", "crude", "wti"},
+    "ANCHOR_DXY": {"dollar", "dxy", "greenback"},
+    "ANCHOR_VIX": {"vix", "volatility index"},
+}
+_SINGLE_INSTRUMENT = set(_ANCHOR_EXACT)
+# BTC is the only crypto anchor: any broad-crypto alias is a CATEGORY substitution (BTC stands in for
+# "crypto"), disclosed as a caveat. But if the claim's actual subjects are SPECIFIC non-BTC crypto
+# instruments, a BTC verdict measures a DIFFERENT asset — the substitution is TOO LARGE -> UNTESTABLE.
+_CRYPTO_CATEGORY = {"crypto", "cryptoasset", "cryptoassets", "crypto-asset", "crypto-assets",
+                    "cryptocurrency", "cryptocurrencies", "digital asset", "digital assets"}
+_NON_BTC_CRYPTO = {"tether", "usdt", "usdc", "cardano", "ada", "dogecoin", "doge", "ethereum", "eth",
+                   "ether", "solana", "sol", "ripple", "xrp", "binance coin", "bnb", "litecoin", "ltc",
+                   "stablecoin", "stablecoins", "altcoin", "altcoins"}
+
+
+def _proxy_substitution(mapped: list, assets: list, text: str):
+    """Detect whether triage stood a claim's asset in for a DIFFERENT single-instrument anchor.
+    Returns (caveat: str|None, too_large: bool, reason: str|None). Category substitution (crypto->BTC)
+    -> caveat, still testable. Specific-instrument substitution (claim is about Tether/Cardano/... but we
+    can only measure BTC) -> too_large, UNTESTABLE — never verdict a different asset silently."""
+    caveats, too_large, why = [], False, None
+    asset_words = {a.lower() for a in assets}
+    for alias, anchor in mapped:
+        if anchor not in _SINGLE_INSTRUMENT:
+            continue
+        if alias in _ANCHOR_EXACT[anchor]:
+            continue                                    # the alias IS the asset — no substitution
+        disp = anchor.replace("ANCHOR_", "")
+        if anchor == "ANCHOR_BTC" and alias in _CRYPTO_CATEGORY:
+            # word-boundary match so "tether" doesn't substring-hit "eth"/"ether"
+            named = sorted({w for w in _NON_BTC_CRYPTO
+                            if w in asset_words or re.search(r"\b" + re.escape(w) + r"\b", text)})
+            if named:
+                too_large = True
+                why = (f"claim is about specific non-BTC crypto ({', '.join(named)}); the engine measures "
+                       f"only BITCOIN — a BTC verdict would test a different asset")
+            else:
+                caveats.append(f"PROXY-SUBSTITUTION: claim's '{alias}' is measured via BITCOIN, the "
+                               "engine's only crypto anchor — BTC is a broad-category stand-in, not the "
+                               "specific instrument(s) the paper studied")
+        else:
+            caveats.append(f"PROXY-SUBSTITUTION: claim's '{alias}' is measured via {disp}, a stand-in — "
+                           "the anchor is a representative, not the exact asset named")
+    return ("; ".join(caveats) or None), too_large, why
+
 
 def _event_vocab() -> dict:
     p = MLL / "deliverables" / "relational" / "event_studies.json"
@@ -144,40 +202,60 @@ def triage(ticket: dict) -> dict:
     for a in ticket.get("assets", []):
         mapped += [(al, nm) for al, nm in _map_anchors(a.lower()) if nm not in [m[1] for m in mapped]]
     anchors = [nm for _al, nm in mapped]
+    # HYP-1: proxy substitution. A too-large substitution short-circuits to UNTESTABLE BEFORE any test —
+    # never verdict a different asset. A category substitution rides through as a disclosed caveat.
+    caveat, too_large, sub_why = _proxy_substitution(mapped, ticket.get("assets", []), text)
+    if too_large:
+        return {"testable": False, "mode": None, "mapped": mapped, "proxy_caveat": caveat,
+                "reason": f"proxy substitution too large — {sub_why}"}
     ev_hit = next((k for k, vocab in _event_vocab().items() if any(v in text for v in vocab)), None)
     if ev_hit:
         return {"testable": True, "mode": "event", "event": ev_hit, "anchors": anchors or ["ANCHOR_SPY"],
-                "mapped": mapped, "reason": f"registered event type {ev_hit}"}
+                "mapped": mapped, "proxy_caveat": caveat, "reason": f"registered event type {ev_hit}"}
     if len(anchors) >= 2:
         if ticket.get("direction") not in _DIRECTIONAL_OK:
-            return {"testable": False, "mode": None, "mapped": mapped,
+            return {"testable": False, "mode": None, "mapped": mapped, "proxy_caveat": caveat,
                     "reason": "two anchors but no comparable direction in the claim"}
         return {"testable": True, "mode": "pair", "anchors": anchors[:2], "mapped": mapped,
-                "reason": f"anchor pair {anchors[0]} vs {anchors[1]}"}
+                "proxy_caveat": caveat, "reason": f"anchor pair {anchors[0]} vs {anchors[1]}"}
     if len(anchors) == 1 and any(t in text for t in _RECOVERY_TERMS):
         return {"testable": True, "mode": "recovery", "anchors": anchors, "mapped": mapped,
-                "reason": f"drawdown/recovery structure on {anchors[0]}"}
+                "proxy_caveat": caveat, "reason": f"drawdown/recovery structure on {anchors[0]}"}
     if anchors:
-        return {"testable": False, "mode": None, "mapped": mapped,
+        return {"testable": False, "mode": None, "mapped": mapped, "proxy_caveat": caveat,
                 "reason": "one mapped anchor, no event/recovery structure — no machinery fits"}
-    return {"testable": False, "mode": None, "mapped": [],
+    return {"testable": False, "mode": None, "mapped": [], "proxy_caveat": None,
             "reason": f"unmapped assets {ticket.get('assets')} — outside the anchor universe"}
 
 
 # ============================ 4. consistency check (extraction is hostile) ============================
+# Direction word-families. Expanded 2026-07-22 (HYP-2) with SEMANTIC EQUIVALENTS calibrated against the
+# 23 UNVERIFIED quotes — every added token genuinely denotes market DIRECTION, never method quality
+# ("better model", "converges faster", "higher density score" stay OUT so a methodology claim can't pass
+# as a market claim). The verbatim-quote + asset-alias requirements upstream are UNCHANGED and strict.
 _DIR_LEXICON = {
-    "positive": ("positive", "increase", "increases", "rise", "rises", "higher", "co-mov", "comov",
-                 "correlat", "together", "amplif"),
-    "negative": ("negative", "decreas", "fall", "falls", "lower", "declin", "drop", "reduc"),
-    "inverse": ("invers", "opposite", "negative", "hedge", "diversif", "uncorrelat", "decoupl"),
-    "outperform": ("outperform", "exceed", "beat", "higher return", "superior", "improvement over",
-                   "improvements over", "gains over", "better than", "dominate"),
+    "positive": ("positive", "increase", "increases", "rise", "rises", "raise", "raises", "higher",
+                 "co-mov", "comov", "correlat", "together", "amplif", "boost", "boosts",
+                 "begets", "reflexive", "self-sustain", "self-reinforc", "reinforc", "compound",
+                 "drives up", "push up", "lifts", "elevat"),
+    "negative": ("negative", "decreas", "fall", "falls", "lower", "declin", "drop", "reduc",
+                 "compress", "suppress", "dampen", "erode", "undermin", "weigh on", "drag",
+                 "no proportional", "no increase", "no large response"),
+    "inverse": ("invers", "opposite", "negative", "hedge", "diversif", "uncorrelat", "decoupl",
+                "offset", "counter"),
+    "outperform": ("outperform", "outpace", "exceed", "beat", "higher return", "superior",
+                   "improvement over", "improvements over", "gains over", "better than", "dominate",
+                   # market-outperformance synonyms (NOT model-quality): excess return / alpha
+                   "alpha", "excess return", "excess returns", "benchmark-relative", "market-beating"),
     "underperform": ("underperform", "lag", "trail", "lower return", "inferior",
                      # negated comparatives — "Gold has NOT been MORE efficient than crypto" IS an
                      # underperformance claim (first targeted live run)
                      "not more", "not been more", "less effective", "less efficient", "no better",
-                     "no more effective", "no more efficient"),
-    "predicts": ("predict", "forecast", "precede", "lead", "anticipat", "signal"),
+                     "no more effective", "no more efficient",
+                     # HYP-2: value-destruction / no-edge phrasings
+                     "useless", "no value", "worthless", "no edge", "fail to beat", "destroy value"),
+    "predicts": ("predict", "forecast", "precede", "lead", "anticipat", "signal",
+                 "leading indicator", "granger", "forewarn", "presage"),
 }
 
 
@@ -215,8 +293,11 @@ def test_ticket(ticket: dict, tri: dict) -> dict:
     """Compare the FROZEN claim against precomputed artifacts. Verdicts: supported | contradicted |
     mixed | measured-context (no crisp sign to compare) | NEEDS-EXTENSION. Honesty labels ride along."""
     from relational_escalation import load_evidence, load_event_evidence, load_recovery_evidence
-    labels = ["SURVIVORSHIP: survivor-only panel — stress co-movement understated",
-              "SINGLE-INSTANCE: per-regime numbers are single instances, not distributions"]
+    # HYP-1: a disclosed proxy substitution rides as the FIRST label on the verdict, so the caveat can
+    # never be lost between triage and the card.
+    labels = ([tri["proxy_caveat"]] if tri.get("proxy_caveat") else []) + [
+        "SURVIVORSHIP: survivor-only panel — stress co-movement understated",
+        "SINGLE-INSTANCE: per-regime numbers are single instances, not distributions"]
     if tri["mode"] == "pair":
         ev = load_evidence(tuple(tri["anchors"]))
         if not ev:
@@ -244,8 +325,9 @@ def test_ticket(ticket: dict, tri: dict) -> dict:
                     "note": f"event {tri['event']} has no study artifact"}
         d = st.get("distribution", {})
         n = st.get("n_events")
-        lab = ["SMALL-N: a handful of anecdotes, not a distribution"] if (n or 0) <= 15 else \
-              ["LARGE-N: an empirical distribution"]
+        lab = ([tri["proxy_caveat"]] if tri.get("proxy_caveat") else []) + (
+            ["SMALL-N: a handful of anecdotes, not a distribution"] if (n or 0) <= 15 else
+            ["LARGE-N: an empirical distribution"])
         return {"verdict": "measured-context", "labels": lab + ["FORWARD-LOOKING: inference, not prediction"],
                 "measured": {"n_events": n, "depth": d.get("depth_pct"),
                              "recovery_months": d.get("recover_months")},
@@ -273,6 +355,8 @@ def _item_md(ticket: dict, tri: dict, cons: dict, result: dict | None) -> str:
              f"**Consistency:** {'VERIFIED' if cons.get('verified') else 'UNVERIFIED'} — {cons.get('reason')}",
              f"**Triage:** {'TESTABLE (' + str(tri.get('mode')) + ')' if tri.get('testable') else 'UNTESTABLE'}"
              f" — {tri.get('reason')}"]
+    if tri.get("proxy_caveat"):                          # HYP-1: disclose on the face, tested or not
+        lines.append(f"**⚠ {tri['proxy_caveat']}**")
     if result:
         lines += ["", f"**VERDICT: {result['verdict']}** — {result.get('note','')}",
                   f"measured: {json.dumps(result.get('measured'), default=str)[:400]}"]
