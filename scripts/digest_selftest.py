@@ -90,6 +90,35 @@ def main():
               "That means the range is wide."]:
         check(f"not flagged as an average: \"{w[:32]}…\"", "BARE-AVERAGE" not in fails(w))
 
+    # --- CAUSAL CLAIMS ----------------------------------------------------------------------------
+    # The failure every other check waves through: a causal sentence binds every number and carries
+    # every label. Found in the D1 gate by probing the checker with the failure modes the format exists
+    # to prevent, rather than by assuming the drafter instruction was sufficient.
+    from content_agent.fidelity import check_causal_claims
+
+    def causal(draft, ev=DIGEST_EV):
+        return {f["type"] for f in check_causal_claims(draft, ev)}
+
+    for bad in ["Consumer discretionary fell -4.61%, driven by the rise in crude.",
+                "The decline was caused by the sell-off in semiconductors.",
+                "Staples fell amid rising yields.",
+                "The move reflects concern about consumer demand.",
+                "Discretionary dropped on the back of weak earnings.",
+                "Energy rose, which explains the sector spread.",
+                "It was a rate-driven session.",
+                "Utilities were weighed on by the yield move."]:
+        check(f"causal language caught: \"{bad[:44]}…\"", "CAUSAL-CLAIM" in causal(bad))
+
+    for ok in ["Consumer discretionary fell -4.61% and crude rose 6.17% the same session.",
+               "The S&P 500 declined -1.23%. Semiconductors rose 4.52%.",
+               "These series moved on the same session; the evidence measures no relationship.",
+               "The spread between best and worst sector was 6.34pp.",
+               "After the close, the figures were settled."]:
+        check(f"non-causal co-movement passes: \"{ok[:44]}…\"", not causal(ok))
+
+    check("causal rule does NOT fire on a non-digest study",
+          not check_causal_claims("The drawdown was caused by the credit crisis.", RECOVERY_EV))
+
     # --- SCOPING: non-digest studies are untouched ------------------------------------------------
     check("median depth on a RECOVERY study -> rule does not fire (different class)",
           not check_median_discipline("The median depth was -19.3% across the seven drawdowns.",

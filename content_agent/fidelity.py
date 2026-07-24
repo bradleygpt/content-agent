@@ -186,9 +186,45 @@ _N_RX = re.compile(r"\bN\s*=\s*\d+|\b\d+\s+of\s+\d+\b|\bover\s+\d+\s+\w+|\bacros
 _AVERAGE_RX = re.compile(r"\baverage[ds]?\b|\baverage\b|\bmean\b(?!\s*(?:s\b|ing\b|t\b))", re.I)
 
 
+# --- CAUSAL CLAIMS (Daily Measured Digest, D1-4) ----------------------------------------------------
+# The digest reports co-movement and NOTHING ELSE: the engine measures what moved on a session, never
+# why. Every other check passes a causal sentence — "consumer discretionary fell -4.61%, driven by the
+# 6.17% rise in crude" binds every number and carries every label, so numeric binding and label
+# completeness both wave it through. Yet it is the single most damaging thing this format could print,
+# because it is the claim the evidence most conspicuously does not contain. Deterministic, and scoped to
+# digest-class evidence so study pieces (which legitimately discuss mechanisms) are untouched.
+#
+# The list is EXPLICIT CAUSAL VOCABULARY only. Bare "as" and "after" are excluded: they are overwhelmingly
+# temporal in this register ("as measured", "after the close") and flagging them would train the writer to
+# fight the checker rather than the claim. "amid" and "on the back of" ARE included — they are causal
+# assertions wearing a hedge, which is exactly the move this class must not make.
+_CAUSAL_RX = re.compile(
+    r"\b(?:drove|driven\s+by|caused|causing|triggered|sparked|fuel(?:l?ed)|led\s+to|"
+    r"explains?|explained\s+by|reflect(?:s|ed|ing)|respond(?:ed|ing)\s+to|in\s+response\s+to|"
+    r"because\s+of|due\s+to|thanks\s+to|owing\s+to|on\s+the\s+back\s+of|attributable\s+to|"
+    r"blamed\s+on|result(?:ed|ing)\s+from|prompted\s+by|weighed\s+on|dragged\s+(?:down\s+)?by|"
+    r"boosted\s+by|lifted\s+by|pressured\s+by|amid)\b|\b\w+-driven\b", re.I)
+
+
 def _digest_class(evidence: str) -> bool:
-    """Is this the conditional-distribution class the median rule governs?"""
-    return bool(re.search(r"NOT-A-SIGNAL", evidence))
+    """Is this the conditional-distribution class the median and causal rules govern?"""
+    return bool(re.search(r"NOT-A-SIGNAL|MEASURED DAILY DIGEST EVIDENCE", evidence))
+
+
+def check_causal_claims(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. A digest may state that two things moved on the same session; it may never
+    state or imply that one moved the other."""
+    if not _digest_class(evidence):
+        return []
+    out = []
+    for sent in re.split(r"(?<=[.!?])\s+", draft):
+        s = sent.strip()
+        m = _CAUSAL_RX.search(s)
+        if m:
+            out.append({"type": "CAUSAL-CLAIM", "token": m.group(0),
+                        "detail": f"causal language in a digest — the evidence measures co-movement, "
+                                  f"never cause. Say what moved and stop. sentence: {s[:180]}"})
+    return out
 
 
 def check_median_discipline(draft: str, evidence: str) -> list[dict]:
@@ -291,6 +327,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
                                    f"a false caveat is a false claim, same class as a false number"})
 
     failures.extend(check_median_discipline(draft, evidence))
+    failures.extend(check_causal_claims(draft, evidence))
 
     directional = []
     sents = re.split(r"(?<=[.!?])\s+", draft)
