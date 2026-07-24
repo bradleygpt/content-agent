@@ -64,6 +64,20 @@ def main():
           "MEDIAN-WITHOUT-N" in fails(split))
     check("'N=46' alone satisfies N, with a hit rate present",
           "MEDIAN-WITHOUT-N" not in fails("Median 0.07% (hit rate 0.543, N=46)."))
+    # MEDIAN-AS-ADJECTIVE: the INDEX-MEASURED label the drafter MUST carry contains the word "median"
+    # with no value attached. Failing that punishes a draft for obeying a mandatory instruction — caught
+    # in the D1 validation gate on the first live digest, and locked here.
+    label_sent = ("The S&P 500 (SPY ETF) declined -1.23% [INDEX-MEASURED: index moves are shallower "
+                  "than the median single stock's; never present them as typical for one name].")
+    check("INDEX-MEASURED label text ('the median single stock') is NOT a reported median",
+          "MEDIAN-WITHOUT-N" not in fails(label_sent))
+    for adj in ["Index drawdowns are shallower than the median individual stock's.",
+                "Many single names never recover, unlike the median name."]:
+        check(f"median-as-adjective not flagged: \"{adj[:38]}…\"", "MEDIAN-WITHOUT-N" not in fails(adj))
+    # ...but a real median in the SAME shape must still fail
+    check("a reported median still fails even beside a label",
+          "MEDIAN-WITHOUT-N" in fails("The median next session was 0.07% [INDEX-MEASURED: index "
+                                      "moves are shallower than the median single stock's]."))
 
     # --- BARE-AVERAGE -----------------------------------------------------------------------------
     check("'the average was' -> BARE-AVERAGE", "BARE-AVERAGE" in fails("The average next session was 0.2%."))
@@ -102,6 +116,45 @@ def main():
     check("a compliant digest draft passes fidelity outright",
           rc["passed"] or not [f for f in rc["failures"]
                                if f["type"] in ("MEDIAN-WITHOUT-N", "BARE-AVERAGE", "MISSING-LABEL")])
+
+    # --- BLOCK SHAPE: required labels must describe what the block ACTUALLY contains -----------------
+    # Caught in D1 validation: a fixed label list demanded NOT-A-SIGNAL and CENSORED on a quiet session
+    # that shows no distribution and no recovery data — the INVENTED-LABEL failure with the sign flipped,
+    # and the checker would have enforced it. These use the real builder against a fixture digest, so a
+    # future edit that re-hardcodes the list fails here rather than in production prose.
+    try:
+        import sys as _s
+        from content_agent.studies import MLL
+        _s.path.insert(0, str(MLL / "generation"))
+        import digest_core as dc
+
+        quiet = {"as_of": "2026-01-02", "generated": "", "substrate": "test", "lead": "dispersion",
+                 "moves": {"SPY": {"value": 1.0, "change": 0.5, "unit": "pct", "label": "S&P 500",
+                                   "role": "mark", "proxy": None},
+                           "XLP": {"value": 1.0, "change": -0.9, "unit": "pct", "label": "staples ETF",
+                                   "role": "mark", "proxy": "staples ETF"},
+                           "SMH": {"value": 1.0, "change": 1.2, "unit": "pct", "label": "semis ETF",
+                                   "role": "mark", "proxy": "semis ETF"}},
+                 "dispersion": {"spread_pp": 2.1,
+                                "worst": {"name": "XLP", "label": "staples ETF", "change": -0.9},
+                                "best": {"name": "SMH", "label": "semis ETF", "change": 1.2},
+                                "notable": True},
+                 "crossings": [], "citations": [],
+                 "conditional_meta": {"horizons": [1], "window_start": "2004-01-01",
+                                      "crisis_years": [2008, 2020], "small_n_floor": 30, "method": ""}}
+        qb = dc.build_digest_block(quiet)
+        check("quiet session: NO section 3", "SECTION 3" not in qb)
+        check("quiet session: NO section 4", "SECTION 4" not in qb)
+        check("quiet session: does NOT require NOT-A-SIGNAL (no distribution shown)",
+              "- NOT-A-SIGNAL" not in qb)
+        check("quiet session: does NOT require CENSORED (nothing censored)", "- CENSORED" not in qb)
+        check("quiet session: DOES require SECTOR-PROXY (sector figures shown)", "- SECTOR-PROXY" in qb)
+        check("quiet session: tells the drafter to stop after section 2",
+              "Write sections 1-2 only" in qb)
+        check("quiet session: no dangling reference to distributions 'below'",
+              "conditional distributions below" not in qb)
+    except Exception as e:                                  # markets-llm not reachable -> skip, not fail
+        checks.append((True, f"(skipped block-shape checks: {type(e).__name__})"))
 
     print("DIGEST SELF-TEST (hermetic; fixtures; no network/GPU/queue)\n")
     for good_, name in checks:

@@ -153,6 +153,30 @@ LABELS = {
 # Scoped to drafts whose evidence carries NOT-A-SIGNAL (i.e. digest-class drafts): applying it to every
 # study would fail legitimate prose about a median drawdown depth, which is a different kind of number.
 _MEDIAN_RX = re.compile(r"\bmedian\b", re.I)
+# "median" is not always a reported statistic. The INDEX-MEASURED label the drafter is REQUIRED to carry
+# says "shallower than the median single stock's" — median as an adjective for a typical entity, carrying
+# no value at all. Failing that draft would punish it for obeying a mandatory instruction (observed in the
+# D1 validation gate, first live digest). A median is REPORTED only when a number rides with it.
+_MEDIAN_ADJ_RX = re.compile(r"\bmedian\s+(?:single|individual|typical|average|ordinary)?\s*"
+                            r"(?:stock|name|company|firm|share|issuer)\b", re.I)
+_ANY_NUM_RX = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _median_is_reported(sent: str) -> bool:
+    """Does this sentence REPORT a median value (vs. use 'median' as an adjective)? Clause-bounded, so a
+    number from a later clause cannot make an adjectival 'median' look like a statistic."""
+    for m in re.finditer(r"\bmedian\b", sent, re.I):
+        if _MEDIAN_ADJ_RX.match(sent, m.start()):
+            continue
+        after = sent[m.end():m.end() + 60]
+        for sep in (";", "]", "\n"):
+            cut = after.find(sep)
+            if cut >= 0:
+                after = after[:cut]
+        before = sent[max(0, m.start() - 30):m.start()]
+        if _ANY_NUM_RX.search(after) or _ANY_NUM_RX.search(before):
+            return True
+    return False
 _HITRATE_RX = re.compile(r"\bhit[\s-]rate\b|\d+\s+of\s+\d+|positive\s+in\b|\bN\s*=\s*\d+", re.I)
 _N_RX = re.compile(r"\bN\s*=\s*\d+|\b\d+\s+of\s+\d+\b|\bover\s+\d+\s+\w+|\bacross\s+\d+\s+\w+|"
                    r"\b\d+\s+instances?\b|\b\d+\s+episodes?\b|\b\d+\s+(?:such\s+)?days?\b", re.I)
@@ -178,7 +202,7 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
         s = sent.strip()
         if not s:
             continue
-        if _MEDIAN_RX.search(s) and not (_HITRATE_RX.search(s) and _N_RX.search(s)):
+        if _median_is_reported(s) and not (_HITRATE_RX.search(s) and _N_RX.search(s)):
             out.append({"type": "MEDIAN-WITHOUT-N", "token": "median",
                         "detail": "a median must carry its hit rate AND N in the same sentence — "
                                   f"a bare median reads as a forecast. sentence: {s[:180]}"})
