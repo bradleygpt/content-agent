@@ -126,13 +126,26 @@ the evidence never stated is a false claim. Output ONLY the note text."""
 
 
 def _chat(messages: list[dict], num_predict: int) -> str:
+    """num_ctx MUST be set explicitly. ollama's default is 4096, which counts prompt AND completion —
+    so num_predict is a ceiling that the real budget silently undercuts. Measured 2026-07-24: a
+    crossing-led digest prompt is 3,402 tokens, leaving 694 for output against a 350-650 word target
+    (~500-950 tokens). The first digest truncated mid-sentence with Section 4 missing while
+    num_predict=2400 sat unused. Study blocks are ~3x shorter, which is why this surfaced only here."""
     cfg = CFG["drafting"]
+    opts = {"temperature": 0.7, "num_predict": num_predict, "num_ctx": cfg.get("num_ctx", 8192)}
     r = requests.post(f"{cfg['ollama_url']}/api/chat",
                       json={"model": cfg["model"], "messages": messages, "stream": False,
-                            "options": {"temperature": 0.7, "num_predict": num_predict}},
+                            "options": opts},
                       timeout=900)
     r.raise_for_status()
-    return (r.json().get("message") or {}).get("content", "").strip()
+    body = r.json()
+    # a completion that stopped for 'length' is TRUNCATED, not finished — surface it rather than let a
+    # half-sentence reach the checker looking like a finished draft.
+    if body.get("done_reason") == "length":
+        print(f"[drafter] WARNING: generation hit the length ceiling "
+              f"(prompt {body.get('prompt_eval_count')} + output {body.get('eval_count')} tokens, "
+              f"num_ctx={opts['num_ctx']}) — the draft is truncated")
+    return (body.get("message") or {}).get("content", "").strip()
 
 
 def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = None,

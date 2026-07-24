@@ -119,6 +119,30 @@ def main():
     check("causal rule does NOT fire on a non-digest study",
           not check_causal_claims("The drawdown was caused by the credit crisis.", RECOVERY_EV))
 
+    # --- COMPLETENESS -----------------------------------------------------------------------------
+    # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
+    # validated what it said; none noticed what it never reached.
+    from content_agent.fidelity import check_completeness
+
+    FULL_EV = DIGEST_EV + "\nSECTION 3 — NEXT SESSION\nSECTION 4 — FULL RECOVERY\n"
+
+    def comp(draft, ev=FULL_EV):
+        return {f["type"] for f in check_completeness(draft, ev)}
+
+    truncated = "## Next session\nThe median was 0.07%, positive in 25 of 46 (N=46), full range"
+    check("draft ending mid-sentence -> TRUNCATED-DRAFT", "TRUNCATED-DRAFT" in comp(truncated))
+    check("truncated draft ALSO missing its section -> MISSING-SECTION",
+          "MISSING-SECTION" in comp(truncated))
+    complete = ("## Next session\nMedian 0.07%, positive in 25 of 46 (N=46).\n"
+                "## Full recovery\nMedian 542 sessions over 46 instances.")
+    check("complete draft with both sections passes", not comp(complete))
+    check("draft ending in a quote still counts as terminated",
+          "TRUNCATED-DRAFT" not in comp(complete + ' He called it "measured."'))
+    # a quiet session has NO section 3/4 in evidence, so their absence must NOT fail
+    check("quiet-session evidence: absent sections are not required",
+          not check_completeness("## The mark\nDispersion was 2.1pp.",
+                                 DIGEST_EV.replace("SECTION 3", "X")))
+
     # --- SCOPING: non-digest studies are untouched ------------------------------------------------
     check("median depth on a RECOVERY study -> rule does not fire (different class)",
           not check_median_discipline("The median depth was -19.3% across the seven drawdowns.",

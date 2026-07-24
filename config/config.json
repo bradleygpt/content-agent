@@ -16,7 +16,8 @@
       800,
       1200
     ],
-    "notes_per_flagship": 3
+    "notes_per_flagship": 3,
+    "num_ctx": 8192
   },
   "triggers": {
     "calendar_windows_weeks": {

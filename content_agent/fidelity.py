@@ -211,6 +211,35 @@ def _digest_class(evidence: str) -> bool:
     return bool(re.search(r"NOT-A-SIGNAL|MEASURED DAILY DIGEST EVIDENCE", evidence))
 
 
+# --- COMPLETENESS (Daily Measured Digest, D1-4) -----------------------------------------------------
+# Every other check validates what the draft SAYS. None of them notice what it never got to. The first
+# passing digest ended mid-sentence at "...full range -4.31% to 4.64%," with Section 4 absent entirely,
+# and scored a clean pass: every number it managed to write bound correctly, every label was present.
+# A truncated post is unpublishable no matter how honest its surviving sentences are.
+_SECTION_REQUIRED = [("SECTION 3", r"next\s+session"), ("SECTION 4", r"full\s+recovery")]
+_TERMINAL_RX = re.compile(r"[.!?][\"')\]]*\s*$")
+
+
+def check_completeness(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. Section presence is driven by the EVIDENCE: a quiet session legitimately has
+    no Section 3/4, and demanding them there would be the opposite error."""
+    if not _digest_class(evidence):
+        return []
+    out = []
+    body = draft.rstrip()
+    if body and not _TERMINAL_RX.search(body):
+        out.append({"type": "TRUNCATED-DRAFT", "token": "end-of-draft",
+                    "detail": "the draft does not end on a complete sentence — generation was cut off. "
+                              f"tail: ...{body[-90:]!r}"})
+    for marker, heading_rx in _SECTION_REQUIRED:
+        if marker in evidence and not re.search(heading_rx, draft, re.I):
+            out.append({"type": "MISSING-SECTION", "token": marker,
+                        "detail": f"the evidence carries {marker} but the draft has no matching "
+                                  f"section — a digest that drops a section it has evidence for is "
+                                  f"incomplete, not concise"})
+    return out
+
+
 def check_causal_claims(draft: str, evidence: str) -> list[dict]:
     """-> list of failures. A digest may state that two things moved on the same session; it may never
     state or imply that one moved the other."""
@@ -328,6 +357,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
 
     failures.extend(check_median_discipline(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
+    failures.extend(check_completeness(draft, evidence))
 
     directional = []
     sents = re.split(r"(?<=[.!?])\s+", draft)
