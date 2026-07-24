@@ -86,15 +86,29 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 # context section to the mark, which the evidence never measured; (c) filling a missing section — a
 # dispersion-led session genuinely has no conditional distribution, and reaching for one is the lie.
 DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
-- First line: "# <title>" naming the session and what actually moved. No clickbait, no market narrative.
+
+- THE HEADINGS ARE MANDATORY AND VERBATIM. This is a hard structural requirement, checked mechanically.
+  Emit them EXACTLY, each on its own line, in this order:
+      ## The mark
+      ## The context
+      ## Next session
+      ## Full recovery
+  Do NOT rename them, do NOT merge them, and do NOT write the digest as continuous prose without
+  headings — a previous draft put Section 4's numbers in a paragraph with no header and was rejected.
+  If the evidence has no SECTION 3/4 (no threshold crossing this session), emit ONLY "## The mark" and
+  "## The context" and STOP. Do not substitute another study, do not reach for history that is not in
+  the block, do not pad. A short honest digest is the correct output on a quiet session.
+
+- THE TITLE IS SUBJECT TO EVERY RULE THE BODY IS. First line "# <title>", naming the session and what
+  actually moved. NO CAUSAL WORDS IN THE TITLE — not "amid", not "as", not "on", not "driven by",
+  "after", "despite" or "on the back of". "X and Y Decline Amid Rising Yields" asserts a cause the
+  evidence never measured, and a headline asserts it louder than a sentence does. Name what moved and
+  by how much, or name what moved and stop: "Consumer Discretionary and Communication Services Fall;
+  Sector Spread 6.34 Points". No clickbait, no market narrative.
+
 - 350-650 words, and treat 650 as a hard ceiling. Shorter than a flagship by design: a session is one
   day of evidence, not a study. If you are running long you are transcribing the evidence block — stop
   and cut, do not keep listing numbers.
-- STRUCTURE — use ONLY the sections the evidence block actually contains, in this order, as "## " headers:
-  "The mark", "The context", "Next session", "Full recovery". If the evidence has no SECTION 3/4 (no
-  threshold crossing this session), WRITE ONLY "The mark" and "The context" and STOP. Do not substitute
-  another study, do not reach for history that is not in the block, do not pad. A short honest digest is
-  the correct output on a quiet session.
 
 - ONE HORIZON IS THE SPINE. The evidence marks a horizon [THE SPINE] — the 20-session forward
   distribution. That is the piece's answer and the only horizon that gets a full treatment. The
@@ -122,8 +136,18 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
     * a RECOVERY-TIME median needs its RANGE AND its N: "a median of 542 sessions, ranging from 20 to
       672, across 46 recovered instances". A duration has NO hit rate — never invent one.
   A median without its companions in the same sentence is a FAILED DRAFT.
-- AVERAGES ARE FORBIDDEN ENTIRELY. Never write "average", "on average", or "mean". These distributions
-  are reported as median + hit rate + range + N, because the spread is the content.
+- SPECIFICALLY FORBIDDEN — each of these hard-fails the check:
+    * THE WORD "AVERAGE", in any form, and "mean" as a statistic. Not "the average recovery", not
+      "on average", not "a faster average recovery time". MEDIAN ONLY, always with its N and either its
+      hit rate (returns) or its range (durations). Averaging a distribution whose entire content is its
+      spread destroys the thing being reported.
+    * WORD-NUMBERS and ROUNDED FORMS — "twenty sessions", "about 540 sessions", "roughly 2%", "more
+      than a year". Every evidence figure is quoted as VERBATIM DIGITS with its exact unit.
+    * ANY LABEL NAME NOT PRESENT IN THE EVIDENCE BLOCK. Read the evidence's "REQUIRED HONESTY LABELS"
+      list and use ONLY those names. Do NOT copy label names out of these instructions or from other
+      pieces you have seen — [SURVIVORSHIP] has now been stamped three times onto digest evidence that
+      never mentions it. A caveat the evidence never made is a false claim, exactly like a false
+      number, and it fails the draft just as hard.
 - NO CAUSATION, ANYWHERE. The context section reports what else moved on the same session. You may write
   "crude rose 6.17% the same session". You may NOT write that it drove, caused, triggered, explains,
   reflects, or was behind anything, and you may not imply it with "as", "amid", "on the back of", "after"
@@ -131,10 +155,6 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 - If the evidence has a SECTION 5 (primary-source citations), reproduce each headline EXACTLY as printed,
   with its source and link. Do not summarise, characterise, or connect a filing to a price move. If there
   is no SECTION 5, say nothing about news at all.
-- NEVER WRITE A LABEL NAME THAT IS NOT IN THE EVIDENCE BLOCK. Observed three times: drafts stamping
-  [SURVIVORSHIP] on digest evidence that never mentions it, apparently copying the word from elsewhere
-  in these instructions. Read the evidence's "REQUIRED HONESTY LABELS" list and use ONLY those names. A
-  caveat the evidence never made is a false claim, exactly like a false number, and it hard-fails.
 - Carry EVERY honesty label the evidence requires, by name: NOT-A-SIGNAL above all (these distributions
   describe what followed comparable past days — not a forecast, not a probability for tomorrow), plus
   SECTOR-PROXY, INDEX-MEASURED, CENSORED and SMALL-N where the block carries them.

@@ -55,6 +55,12 @@ _NUM_RX = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\d.])")
 
 def _prep(text: str) -> str:
     t = text.replace("−", "-").replace("–", "-")
+    # Episode keys fuse a name to a year ("repricing_2022", "crash_2008", "calm_2013_2017"). Without
+    # this split the year is not a year token to the extractor, so a draft that correctly writes "2022"
+    # hard-fails NO-MATCH against evidence that visibly contains it (observed on recovery:ANCHOR_SPY,
+    # 2026-07-24). markets-llm's answer_fidelity._normalize has carried this since its own encounter
+    # with crash_2008; the shared core did not. Ported 2026-07-24.
+    t = re.sub(r"(?<=[A-Za-z0-9])_(?=\d)", " ", t)
     t = re.sub(r"(?<=\d)\.\.(?=[\d-])", " to ", t)         # "0.5..14.0" range syntax -> "0.5 to 14.0"
     t = re.sub(r"(?m)^(\s*)\d+[.)]\s+", r"\1", t)          # markdown ordered-list markers are not data
     for p in _STRIP_PATTERNS:
@@ -256,7 +262,16 @@ def _digest_class(evidence: str) -> bool:
 # passing digest ended mid-sentence at "...full range -4.31% to 4.64%," with Section 4 absent entirely,
 # and scored a clean pass: every number it managed to write bound correctly, every label was present.
 # A truncated post is unpublishable no matter how honest its surviving sentences are.
-_SECTION_REQUIRED = [("SECTION 3", r"next\s+session"), ("SECTION 4", r"full\s+recovery")]
+# The four headings are VERBATIM and MANDATORY, and the check now requires a real markdown heading
+# ("## The mark"), not the words appearing anywhere in running prose. A draft that buried Section 4's
+# numbers in a paragraph with no header passed the looser content-based test while being unscannable —
+# the format is part of the product, not decoration. Sections 1 and 2 exist in EVERY digest; 3 and 4
+# only when the evidence carries a crossing, so their requirement is still evidence-driven.
+DIGEST_HEADINGS = ["The mark", "The context", "Next session", "Full recovery"]
+_SECTION_REQUIRED = [(None, r"(?mi)^\s{0,3}#{1,4}\s*the\s+mark\b"),
+                     (None, r"(?mi)^\s{0,3}#{1,4}\s*the\s+context\b"),
+                     ("SECTION 3", r"(?mi)^\s{0,3}#{1,4}\s*next\s+session\b"),
+                     ("SECTION 4", r"(?mi)^\s{0,3}#{1,4}\s*full\s+recovery\b")]
 _TERMINAL_RX = re.compile(r"[.!?][\"')\]]*\s*$")
 
 
@@ -271,14 +286,17 @@ def check_completeness(draft: str, evidence: str) -> list[dict]:
         out.append({"type": "TRUNCATED-DRAFT", "token": "end-of-draft",
                     "detail": "the draft does not end on a complete sentence — generation was cut off. "
                               f"tail: ...{body[-90:]!r}"})
-    for marker, heading_rx in _SECTION_REQUIRED:
-        if marker in evidence and not re.search(heading_rx, draft, re.I):
-            out.append({"type": "MISSING-SECTION", "token": marker,
-                        "detail": f"the evidence carries {marker} but the draft has no matching "
-                                  f"'## ' heading. The section's numbers may be present in running "
-                                  f"prose — the FORMAT is still wrong: these four headings are what "
-                                  f"make a digest scannable and a section droppable-by-accident "
-                                  f"otherwise"})
+    for i, (marker, heading_rx) in enumerate(_SECTION_REQUIRED):
+        # marker None -> always required; otherwise required only when the evidence carries that section
+        if marker is not None and marker not in evidence:
+            continue
+        if not re.search(heading_rx, draft):
+            want = DIGEST_HEADINGS[i]
+            out.append({"type": "MISSING-SECTION", "token": want,
+                        "detail": f'the draft has no "## {want}" HEADING. The numbers may be present '
+                                  f"in running prose — the format is still wrong. The four headings "
+                                  f"are verbatim and mandatory: "
+                                  + ", ".join(f'"## {h}"' for h in DIGEST_HEADINGS)})
     return out
 
 

@@ -159,6 +159,18 @@ def main():
             ("we discuss censored observations", False, "word in a sentence")]:
         check(f"CENSORED evidence detection — {why}", bool(_re.search(_crx, txt)) is want)
 
+    # --- UNDERSCORE-FUSED EPISODE KEYS (ported from markets-llm answer_fidelity, 2026-07-24) ---------
+    # "repricing_2022" hid the year from the extractor, so a draft correctly writing 2022 hard-failed
+    # NO-MATCH against evidence that visibly contained it.
+    from content_agent.fidelity import _extract as _ex
+    _, _, _yrs = _ex("repricing_2022: -24.5% drawdown; crash_2008 recovery 41.3mo", wide_evidence=True)
+    check("underscore-fused years are extracted (repricing_2022 -> 2022)", 2022 in _yrs)
+    check("underscore-fused years are extracted (crash_2008 -> 2008)", 2008 in _yrs)
+    _r = run_fidelity("The 2022 repricing took 14.0 months.",
+                      "repricing_2022: -24.5% drawdown, recovery 14.0mo")
+    check("a draft citing 2022 no longer NO-MATCHes",
+          not any(f["type"] == "NO-MATCH" and f["token"] == "2022" for f in _r["failures"]))
+
     # --- COMPLETENESS -----------------------------------------------------------------------------
     # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
     # validated what it said; none noticed what it never reached.
@@ -169,18 +181,33 @@ def main():
     def comp(draft, ev=FULL_EV):
         return {f["type"] for f in check_completeness(draft, ev)}
 
+    # HEADINGS ARE CHECKED AS HEADINGS, not as words appearing in prose. A draft that buried Section 4's
+    # numbers in a paragraph passed the earlier content-based test while being unscannable.
+    _hdr = "## The mark\nx.\n## The context\ny.\n## Next session\nz.\n## Full recovery\nw."
+    check("all four '## ' headings present -> passes", not comp(_hdr))
+    prose_only = ("The mark was a decline. Next session the median was 1%. "
+                  "Full recovery took 542 sessions.")
+    missing = comp(prose_only)
+    check("headings' WORDS in running prose do NOT satisfy the check", "MISSING-SECTION" in missing)
+    check("sections 1 and 2 are required even without a crossing",
+          any(f["token"] == "The mark" for f in check_completeness("no headings here.", DIGEST_EV)))
+    check("'### The mark' (deeper level) still counts as a heading",
+          not comp(_hdr.replace("## The mark", "### The mark")))
+
     truncated = "## Next session\nThe median was 0.07%, positive in 25 of 46 (N=46), full range"
     check("draft ending mid-sentence -> TRUNCATED-DRAFT", "TRUNCATED-DRAFT" in comp(truncated))
     check("truncated draft ALSO missing its section -> MISSING-SECTION",
           "MISSING-SECTION" in comp(truncated))
-    complete = ("## Next session\nMedian 0.07%, positive in 25 of 46 (N=46).\n"
+    complete = ("## The mark\nA decline.\n## The context\nOther moves.\n"
+                "## Next session\nMedian 0.07%, positive in 25 of 46 (N=46).\n"
                 "## Full recovery\nMedian 542 sessions over 46 instances.")
     check("complete draft with both sections passes", not comp(complete))
     check("draft ending in a quote still counts as terminated",
           "TRUNCATED-DRAFT" not in comp(complete + ' He called it "measured."'))
     # a quiet session has NO section 3/4 in evidence, so their absence must NOT fail
-    check("quiet-session evidence: absent sections are not required",
-          not check_completeness("## The mark\nDispersion was 2.1pp.",
+    # A quiet session must still carry sections 1 and 2 — only 3/4 are evidence-conditional.
+    check("quiet session: sections 3/4 not required, 1/2 still are",
+          not check_completeness("## The mark\nDispersion was 2.1pp.\n## The context\nVIX rose.",
                                  DIGEST_EV.replace("SECTION 3", "X")))
 
     # --- SCOPING: non-digest studies are untouched ------------------------------------------------
