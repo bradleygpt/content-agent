@@ -87,86 +87,75 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 # dispersion-led session genuinely has no conditional distribution, and reaching for one is the lie.
 DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 
-- THE HEADINGS ARE MANDATORY AND VERBATIM. This is a hard structural requirement, checked mechanically.
-  Emit them EXACTLY, each on its own line, in this order:
-      ## The mark
-      ## The context
-      ## Next session
-      ## Full recovery
-  Do NOT rename them, do NOT merge them, and do NOT write the digest as continuous prose without
-  headings — a previous draft put Section 4's numbers in a paragraph with no header and was rejected.
-  If the evidence has no SECTION 3/4 (no threshold crossing this session), emit ONLY "## The mark" and
-  "## The context" and STOP. Do not substitute another study, do not reach for history that is not in
-  the block, do not pad. A short honest digest is the correct output on a quiet session.
+=== FILL IN THIS SKELETON. Emit these four headings verbatim, in this order, nothing else. ===
 
-- THE TITLE IS SUBJECT TO EVERY RULE THE BODY IS. First line "# <title>", naming the session and what
-  actually moved. NO CAUSAL WORDS IN THE TITLE — not amid, as, on, driven by, after, despite, or on
-  the back of. A headline that links two moves asserts a cause the evidence never measured, and it
-  asserts it louder than a sentence does. Build the title from THIS session's own figures: name the
-  anchors that moved and either their sizes or the sector spread, joined by a semicolon rather than a
-  connective. WRITE YOUR OWN — do not reuse any wording from these instructions. No clickbait, no
-  market narrative.
+# <title: this session and what moved, built from the figures below>
 
-- 350-650 words, and treat 650 as a hard ceiling. Shorter than a flagship by design: a session is one
-  day of evidence, not a study. If you are running long you are transcribing the evidence block — stop
-  and cut, do not keep listing numbers.
+## The mark          (~90 words)
+<which anchors crossed and by how much, or — if nothing crossed — the sector spread>
 
-- ONE HORIZON IS THE SPINE. The evidence marks a horizon [THE SPINE] — the 20-session forward
-  distribution. That is the piece's answer and the only horizon that gets a full treatment. The
-  1-session and 5-session figures are marked [supporting detail]: mention them ONCE, together, in a
-  single short sentence, and only to show that the near term is noisier than the 20-session picture.
-  DO NOT walk through every horizon for every anchor. Six horizon paragraphs is the failure mode this
-  instruction exists to prevent.
-- NAME HORIZONS IN PLAIN ENGLISH, exactly as the evidence does: "over the next 20 sessions", "over the
-  next 5 sessions", "the next session". NEVER write "the median next session with a +5 period" or any
-  other mangling of the horizon — a 5-session horizon is not a "next session".
-- WHEN TWO ANCHORS CROSS, THE SECOND MUST READ AS PROSE, NOT AS A SECOND FILL-IN OF THE FIRST'S
-  TEMPLATE. Do not repeat the sentence shapes you used for the first anchor. Lead the second with what
-  makes it DIFFERENT — a shorter history, a different crisis split, a faster or slower recovery — and
-  compare it to the first in words. If the two anchors are genuinely similar, say so in one sentence
-  rather than restating both sets of numbers.
-- "FULL RECOVERY" IS THE PAYOFF SECTION. "How long did it take to get back?" is the question the reader
-  actually has, and the number a confident market account never gives them. Give it the most weight of
-  any section: real sentences, the crisis-vs-ordinary contrast spelled out, and the censored instance
-  named. It is not the fourth item in a list.
+## The context       (~80 words)
+<what else moved the same session, as a list of figures. No links between them.>
 
-- THE MEDIAN RULE — the hardest constraint, and it is checked mechanically. Every median must appear in
-  the SAME SENTENCE as its companions, and WHICH companions depends on what it measures:
-    * a RETURN median needs its hit rate AND its N, in this shape: over the next <H> sessions the
-      median was <median>%, positive in <hits> of <N> instances (N=<N>);
-    * a RECOVERY-TIME median needs its RANGE AND its N, in this shape: a median of <median> sessions,
-      ranging from <min> to <max>, across <N> recovered instances. A duration has NO hit rate — never
-      invent one.
-  The angle brackets are PLACEHOLDERS. Substitute this session's own figures from the evidence block;
-  never carry a number, a ticker or a phrase out of these instructions into the piece.
-  A median without its companions in the same sentence is a FAILED DRAFT.
-- SPECIFICALLY FORBIDDEN — each of these hard-fails the check:
-    * THE WORD "AVERAGE", in any form, and "mean" as a statistic. Not "the average recovery", not
-      "on average", not "a faster average recovery time". MEDIAN ONLY, always with its N and either its
-      hit rate (returns) or its range (durations). Averaging a distribution whose entire content is its
-      spread destroys the thing being reported.
-    * WORD-NUMBERS and ROUNDED FORMS — a spelled-out count, an approximated duration, a rounded percentage, a
-      vague span. Every evidence figure is quoted as VERBATIM DIGITS with its exact unit.
-    * ANY LABEL NAME NOT PRESENT IN THE EVIDENCE BLOCK. Read the evidence's "REQUIRED HONESTY LABELS"
-      list and use ONLY those names. Do NOT copy label names out of these instructions or from other
-      pieces you have seen — [SURVIVORSHIP] has now been stamped three times onto digest evidence that
-      never mentions it. A caveat the evidence never made is a false claim, exactly like a false
-      number, and it fails the draft just as hard.
-- NO CAUSATION, ANYWHERE. The context section reports what else moved on the same session. You may write
-  a bare co-movement statement (one series, its move, "the same session"). You may NOT write that it drove, caused, triggered, explains,
-  reflects, or was behind anything, and you may not imply it with "as", "amid", "on the back of", "after"
-  used causally, or a "-driven" compound. If you cannot say it without asserting a cause, give only the
-  two figures side by side.
-- If the evidence has a SECTION 5 (primary-source citations), reproduce each headline EXACTLY as printed,
-  with its source and link. Do not summarise, characterise, or connect a filing to a price move. If there
-  is no SECTION 5, say nothing about news at all.
-- Carry EVERY honesty label the evidence requires, by name: NOT-A-SIGNAL above all (these distributions
-  describe what followed comparable past days — not a forecast, not a probability for tomorrow), plus
-  SECTOR-PROXY, INDEX-MEASURED, CENSORED and SMALL-N where the block carries them.
-- State the crisis clustering wherever the evidence gives it: a distribution built mostly from 2008 and
-  2020 is not an ordinary one, and the reader must be told the split.
-- Close with the deferral: what a measured session record can and cannot tell you about tomorrow.
-- Output ONLY the markdown post, no preamble, no code fences."""
+## Next session      (~200 words)
+<the [THE SPINE] horizon in full, per anchor; the [supporting detail] horizons in ONE shared
+sentence; the crisis split stated>
+
+## Full recovery     (~180 words)
+<time to regain the prior high: median, range, N, the crisis-vs-ordinary contrast, the censored
+instance, and the survivorship limitation if the evidence names it>
+
+<close: ~60 words of deferral — what a measured session record can and cannot say about tomorrow>
+
+=== END SKELETON. Total 350-650 words; 650 is a hard ceiling. If a section runs past its budget you
+are transcribing the evidence rather than writing — cut. ===
+
+IF THE EVIDENCE HAS NO SECTION 3/4 (no threshold crossing this session): emit ONLY "## The mark" and
+"## The context", then the deferral close, and STOP. Do not substitute another study, do not reach for
+history that is not in the block, do not pad. A short honest digest is the correct output on a quiet
+session.
+
+NOW THE RULES. Every one of these is checked mechanically; a breach fails the draft.
+
+NUMBERS
+- Every figure comes from the MEASURED EVIDENCE block, copied VERBATIM as digits with its exact unit.
+  Never compute, convert, round, or spell out. Never introduce a number that is not in the evidence.
+- A median NEVER appears without its companions IN THE SAME SENTENCE, and which companions depends on
+  what it measures:
+    * a RETURN median needs its hit rate AND its N: over the next <H> sessions the median was
+      <median>%, positive in <hits> of <N> instances (N=<N>);
+    * a RECOVERY-TIME median needs its RANGE AND its N: a median of <median> sessions, ranging from
+      <min> to <max>, across <N> recovered instances. A duration has NO hit rate — never invent one.
+  The angle brackets are PLACEHOLDERS for this session's own figures. Carry no number, ticker or
+  phrase out of these instructions into the piece.
+- FORBIDDEN: the word "average" in any form, and "mean" as a statistic. Median only. Averaging a
+  distribution whose entire content is its spread destroys the thing being reported.
+
+CAUSATION — the single most damaging thing this format can print
+- The evidence measures WHAT MOVED, never WHY. You may write that two series moved on the same
+  session. You may NOT write that one drove, caused, triggered, explains, reflects or was behind
+  another, and you may not imply it with "amid", "as", "after" or "on the back of" used causally, or
+  with a "-driven" compound. If you cannot say it without asserting a cause, give the two figures
+  side by side and stop.
+- THE TITLE IS BOUND BY THIS TOO. A headline that links two moves asserts a cause louder than a
+  sentence does. Join the session's figures with a semicolon, not a connective. Write your own title;
+  reuse no wording from these instructions.
+
+LABELS
+- Carry EVERY label the evidence's "REQUIRED HONESTY LABELS" list names, by name.
+- Use ONLY those names. Do not copy label names from these instructions or from pieces you have seen.
+  A caveat the evidence never made is a false claim exactly like a false number, and fails just as
+  hard. If you believe a limitation exists that the evidence has not named, describe it in plain words
+  WITHOUT a label tag.
+
+VOICE
+- When two anchors cross, the second must read as prose, not as a refill of the first's template.
+  Lead it with what makes it DIFFERENT — a shorter history, a different crisis split, a faster or
+  slower recovery — and compare in words. If they are genuinely alike, say so in one sentence.
+- "Full recovery" is the payoff, not a footnote: "how long did it take to get back" is the question
+  the reader actually has and the number a confident market account never gives them.
+
+Output ONLY the markdown post, no preamble, no code fences."""
 
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
