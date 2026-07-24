@@ -116,6 +116,25 @@ def main():
                "After the close, the figures were settled."]:
         check(f"non-causal co-movement passes: \"{ok[:44]}…\"", not causal(ok))
 
+    # COVERAGE DISCLAIMER vs causal claim — "reflected in" is data-presence, not causation
+    for ok in ["The observed patterns may shift with factors not reflected in this data set.",
+               "Conditions not reflected in the sample could differ."]:
+        check(f"coverage disclaimer is not causal: \"{ok[:40]}…\"", not causal(ok))
+    check("but 'reflects <noun>' is still causal",
+          "CAUSAL-CLAIM" in causal("The move reflects concern about demand."))
+
+    # --- MEDIAN KIND: a DURATION has no hit rate ---------------------------------------------------
+    # The rule originally demanded a hit rate for every median. Section 4 reports recovery DURATIONS and
+    # the evidence prints no hit rate anywhere — so the only way to satisfy it was to fabricate one.
+    dur_ok = ("The median time to regain the prior high was 542 sessions, ranging from 20 to 672 "
+              "sessions, over 46 recovered instances.")
+    check("recovery median with N + range passes (no hit rate exists for a duration)",
+          "MEDIAN-WITHOUT-N" not in fails(dur_ok))
+    check("recovery median WITHOUT its range still fails",
+          "MEDIAN-WITHOUT-N" in fails("The median time to regain the prior high was 542 sessions."))
+    check("return median still REQUIRES a hit rate",
+          "MEDIAN-WITHOUT-N" in fails("The median next session was 0.07% over 46 instances."))
+
     check("causal rule does NOT fire on a non-digest study",
           not check_causal_claims("The drawdown was caused by the credit crisis.", RECOVERY_EV))
 

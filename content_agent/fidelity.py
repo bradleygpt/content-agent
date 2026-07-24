@@ -162,6 +162,29 @@ _MEDIAN_ADJ_RX = re.compile(r"\bmedian\s+(?:single|individual|typical|average|or
 _ANY_NUM_RX = re.compile(r"-?\d+(?:\.\d+)?")
 
 
+# A median's companion depends on WHAT IS BEING MEASURED, and getting this wrong made the rule
+# unsatisfiable. A forward RETURN has a hit rate (count positive / N) because an outcome can be positive
+# or negative. A recovery DURATION has no such thing — "positive" is meaningless for a number of sessions,
+# and the evidence block prints no hit rate anywhere in Section 4. Demanding one there forced the drafter
+# to either fail or fabricate; a rule whose only satisfying move is inventing a number is a broken rule.
+# The purpose survives in both cases: a median never stands alone. Returns carry hit rate + N; durations
+# carry N + range.
+_DURATION_RX = re.compile(r"\bsessions?\b|\bdays?\b|\bmonths?\b|\bweeks?\b|\byears?\b", re.I)
+_RANGE_RX = re.compile(r"\brang\w+\b|\brange\b|\bfrom\s+[\d.]+\s+to\s+[\d.]+|[\d.]+\s+to\s+[\d.]+", re.I)
+
+
+def _median_kind(sent: str, pos: int) -> str:
+    """'duration' | 'return' — what the median at `pos` measures, from the words riding with it."""
+    window = sent[pos:pos + 70]
+    for sep in (";", "]", "\n"):
+        cut = window.find(sep)
+        if cut >= 0:
+            window = window[:cut]
+    if _DURATION_RX.search(window) and "%" not in window:
+        return "duration"
+    return "return"
+
+
 def _median_is_reported(sent: str) -> bool:
     """Does this sentence REPORT a median value (vs. use 'median' as an adjective)? Clause-bounded, so a
     number from a later clause cannot make an adjectival 'median' look like a statistic."""
@@ -198,9 +221,12 @@ _AVERAGE_RX = re.compile(r"\baverage[ds]?\b|\baverage\b|\bmean\b(?!\s*(?:s\b|ing
 # temporal in this register ("as measured", "after the close") and flagging them would train the writer to
 # fight the checker rather than the claim. "amid" and "on the back of" ARE included — they are causal
 # assertions wearing a hedge, which is exactly the move this class must not make.
+# "reflect" carries a negative lookahead on "in": "the move reflects concern" asserts a cause, while
+# "factors not reflected in this data set" is a COVERAGE DISCLAIMER — the opposite of a causal claim,
+# and exactly the kind of honest hedging this publication wants. Caught in the D1 gate.
 _CAUSAL_RX = re.compile(
     r"\b(?:drove|driven\s+by|caused|causing|triggered|sparked|fuel(?:l?ed)|led\s+to|"
-    r"explains?|explained\s+by|reflect(?:s|ed|ing)|respond(?:ed|ing)\s+to|in\s+response\s+to|"
+    r"explains?|explained\s+by|reflect(?:s|ed|ing)(?!\s+in\b)|respond(?:ed|ing)\s+to|in\s+response\s+to|"
     r"because\s+of|due\s+to|thanks\s+to|owing\s+to|on\s+the\s+back\s+of|attributable\s+to|"
     r"blamed\s+on|result(?:ed|ing)\s+from|prompted\s+by|weighed\s+on|dragged\s+(?:down\s+)?by|"
     r"boosted\s+by|lifted\s+by|pressured\s+by|amid)\b|\b\w+-driven\b", re.I)
@@ -267,10 +293,19 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
         s = sent.strip()
         if not s:
             continue
-        if _median_is_reported(s) and not (_HITRATE_RX.search(s) and _N_RX.search(s)):
-            out.append({"type": "MEDIAN-WITHOUT-N", "token": "median",
-                        "detail": "a median must carry its hit rate AND N in the same sentence — "
-                                  f"a bare median reads as a forecast. sentence: {s[:180]}"})
+        if _median_is_reported(s):
+            m = re.search(r"\bmedian\b", s, re.I)
+            kind = _median_kind(s, m.end()) if m else "return"
+            if kind == "duration":
+                if not (_N_RX.search(s) and _RANGE_RX.search(s)):
+                    out.append({"type": "MEDIAN-WITHOUT-N", "token": "median (duration)",
+                                "detail": "a median recovery time must carry its N and its range in "
+                                          "the same sentence (a hit rate does not exist for a "
+                                          f"duration). sentence: {s[:180]}"})
+            elif not (_HITRATE_RX.search(s) and _N_RX.search(s)):
+                out.append({"type": "MEDIAN-WITHOUT-N", "token": "median (return)",
+                            "detail": "a median return must carry its hit rate AND N in the same "
+                                      f"sentence — a bare median reads as a forecast. sentence: {s[:180]}"})
         if _AVERAGE_RX.search(s):
             out.append({"type": "BARE-AVERAGE", "token": "average/mean",
                         "detail": "averages are forbidden for conditional distributions — report the "
