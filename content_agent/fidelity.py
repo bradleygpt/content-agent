@@ -136,7 +136,57 @@ LABELS = {
                         r"(?:doesn'?t|does\s+not|cannot|can'?t)\s+(?:predict|forecast|tell)|"
                         r"inference|history\b[^.]{0,40}not\s+a\s+guarantee|forward[\s-]looking"),
     "SECTOR-PROXY": (r"SECTOR-PROXY", r"proxy|\betf\b"),
+    "NOT-A-SIGNAL": (r"NOT-A-SIGNAL",
+                     r"not[\s-]a[\s-]signal|not\s+a\s+(?:forecast|prediction|recommendation|"
+                     r"probability)|what\s+followed|describes?\s+the\s+past|no(?:t)?\s+"
+                     r"(?:a\s+)?guarantee"),
 }
+
+# --- MEDIAN-WITHOUT-N (Daily Measured Digest, D1-4) -------------------------------------------------
+# A conditional distribution's median is meaningless alone: "the median next session was +0.2%" reads as
+# a forecast, while "+0.2%, positive in 25 of 46 instances, N=46" reads as what it is — a spread of
+# outcomes. The digest evidence block therefore states the rule to the drafter, and this check makes it
+# a HARD FAIL rather than a hope. Two failure classes:
+#   MEDIAN-WITHOUT-N  a sentence gives a median but no N and no hit rate in that SAME sentence.
+#   BARE-AVERAGE      a sentence reports a mean/average of outcomes at all — forbidden outright for this
+#                     class, because averaging a distribution whose whole point is its spread destroys it.
+# Scoped to drafts whose evidence carries NOT-A-SIGNAL (i.e. digest-class drafts): applying it to every
+# study would fail legitimate prose about a median drawdown depth, which is a different kind of number.
+_MEDIAN_RX = re.compile(r"\bmedian\b", re.I)
+_HITRATE_RX = re.compile(r"\bhit[\s-]rate\b|\d+\s+of\s+\d+|positive\s+in\b|\bN\s*=\s*\d+", re.I)
+_N_RX = re.compile(r"\bN\s*=\s*\d+|\b\d+\s+of\s+\d+\b|\bover\s+\d+\s+\w+|\bacross\s+\d+\s+\w+|"
+                   r"\b\d+\s+instances?\b|\b\d+\s+episodes?\b|\b\d+\s+(?:such\s+)?days?\b", re.I)
+# "average"/"mean" as a statistic. Excludes idioms that are not the statistic ("on average" alone still
+# counts — it is exactly the hedge this class must not use; "meanwhile"/"meaningful" are word-boundary
+# safe, and "means" as a verb is excluded explicitly).
+_AVERAGE_RX = re.compile(r"\baverage[ds]?\b|\baverage\b|\bmean\b(?!\s*(?:s\b|ing\b|t\b))", re.I)
+
+
+def _digest_class(evidence: str) -> bool:
+    """Is this the conditional-distribution class the median rule governs?"""
+    return bool(re.search(r"NOT-A-SIGNAL", evidence))
+
+
+def check_median_discipline(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. Sentence-scoped: the hit rate and N must sit in the SAME sentence as the
+    median, because a reader takes the number from the sentence they are reading, not from a paragraph
+    three sentences down."""
+    if not _digest_class(evidence):
+        return []
+    out = []
+    for sent in re.split(r"(?<=[.!?])\s+", draft):
+        s = sent.strip()
+        if not s:
+            continue
+        if _MEDIAN_RX.search(s) and not (_HITRATE_RX.search(s) and _N_RX.search(s)):
+            out.append({"type": "MEDIAN-WITHOUT-N", "token": "median",
+                        "detail": "a median must carry its hit rate AND N in the same sentence — "
+                                  f"a bare median reads as a forecast. sentence: {s[:180]}"})
+        if _AVERAGE_RX.search(s):
+            out.append({"type": "BARE-AVERAGE", "token": "average/mean",
+                        "detail": "averages are forbidden for conditional distributions — report the "
+                                  f"median with its hit rate, N and range. sentence: {s[:180]}"})
+    return out
 
 # INVENTED-LABEL detection — deliberately NARROW (explicit label invocation only) where required-label
 # satisfaction above is BROAD. The asymmetry is the point: a draft may honestly write "not a distribution"
@@ -154,6 +204,7 @@ LABEL_CLAIMS = {
     "DISTRIBUTION": r"\blarge[\s-]*n\b",
     "FORWARD-LOOKING": r"\bforward[\s-]looking\b",
     "SECTOR-PROXY": r"\bsector[\s-]proxy\b",
+    "NOT-A-SIGNAL": r"\bnot[\s-]a[\s-]signal\b",
 }
 
 _ATTRIB_RX = re.compile(r"measured|relational engine|the engine|since 2004|the data|this study|"
@@ -214,6 +265,8 @@ def run_fidelity(draft: str, evidence: str) -> dict:
         failures.append({"type": "INVENTED-LABEL", "token": name,
                          "detail": f"draft asserts {name} but the evidence never carries it — "
                                    f"a false caveat is a false claim, same class as a false number"})
+
+    failures.extend(check_median_discipline(draft, evidence))
 
     directional = []
     sents = re.split(r"(?<=[.!?])\s+", draft)

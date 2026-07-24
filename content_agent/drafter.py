@@ -80,6 +80,40 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 - Include the weighted two-sided section and a deferral close.
 - Output ONLY the markdown post, no preamble, no code fences."""
 
+# THE DAILY MEASURED DIGEST (D1-4). A different contract from the study pieces: the spine is one SESSION,
+# not one study, and the failure modes are specific enough to name. The three that this task exists to
+# prevent: (a) a median printed alone, which reads as a forecast; (b) a causal sentence connecting the
+# context section to the mark, which the evidence never measured; (c) filling a missing section — a
+# dispersion-led session genuinely has no conditional distribution, and reaching for one is the lie.
+DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
+- First line: "# <title>" naming the session and what actually moved. No clickbait, no market narrative.
+- 350-650 words. Shorter than a flagship by design: a session is one day of evidence, not a study.
+- STRUCTURE — use ONLY the sections the evidence block actually contains, in this order, as "## " headers:
+  "The mark", "The context", "Next session", "Full recovery". If the evidence has no SECTION 3/4 (no
+  threshold crossing this session), WRITE ONLY "The mark" and "The context" and STOP. Do not substitute
+  another study, do not reach for history that is not in the block, do not pad. A short honest digest is
+  the correct output on a quiet session.
+- THE MEDIAN RULE — the hardest constraint here, and it is checked mechanically: EVERY median you write
+  must appear in the SAME SENTENCE as its hit rate and its N. Write "the median next session was 0.21%,
+  positive in 43 of 78 instances (N=78)", never "the median next session was 0.21%". A median in a
+  sentence without its hit rate and N is a FAILED DRAFT.
+- AVERAGES ARE FORBIDDEN ENTIRELY. Never write "average", "on average", or "mean". These distributions
+  are reported as median + hit rate + range + N, because the spread is the content.
+- NO CAUSATION, ANYWHERE. The context section reports what else moved on the same session. You may write
+  "crude rose 6.17% the same session". You may NOT write that it drove, caused, triggered, explains,
+  reflects, or was behind anything, and you may not imply it with "as", "amid", "on the back of", "after"
+  used causally, or "-driven". If you cannot say it without asserting a cause, say only the two numbers.
+- If the evidence has a SECTION 5 (primary-source citations), reproduce each headline EXACTLY as printed,
+  with its source and link. Do not summarise, characterise, or connect a filing to a price move. If there
+  is no SECTION 5, say nothing about news at all.
+- Carry EVERY honesty label the evidence requires, by name: NOT-A-SIGNAL above all (these distributions
+  describe what followed comparable past days — not a forecast, not a probability for tomorrow), plus
+  SECTOR-PROXY, INDEX-MEASURED, CENSORED and SMALL-N where the block carries them.
+- State the crisis clustering wherever the evidence gives it: a distribution built mostly from 2008 and
+  2020 is not an ordinary one, and the reader must be told the split.
+- Close with the deferral: what a measured session record can and cannot tell you about tomorrow.
+- Output ONLY the markdown post, no preamble, no code fences."""
+
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
 as DIGITS with its unit — never a word-number, never rounded, never "about"/"more than"; comparisons are
@@ -111,9 +145,15 @@ def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = No
     if fidelity_failures:
         user += ["", "FIDELITY FAILURES from your previous attempt — fix EXACTLY these and change nothing "
                      "else about the numbers:"] + [f"- {f}" for f in fidelity_failures]
-    # comparative (sector-by-sector) evidence needs the sector-unit task, not the per-event one
-    is_comparative = "SECTOR-BY-SECTOR" in evidence or "COMPARATIVE RELATIONAL" in evidence
-    user += ["", FLAGSHIP_TASK_COMPARATIVE if is_comparative else FLAGSHIP_TASK]
+    # Task selection follows the EVIDENCE CLASS, not the caller's intent: the block itself says what kind
+    # of thing it is, so a mis-routed task can't survive a change of caller.
+    if "MEASURED DAILY DIGEST EVIDENCE" in evidence:
+        task = DIGEST_TASK
+    elif "SECTOR-BY-SECTOR" in evidence or "COMPARATIVE RELATIONAL" in evidence:
+        task = FLAGSHIP_TASK_COMPARATIVE
+    else:
+        task = FLAGSHIP_TASK
+    user += ["", task]
     body = _chat([{"role": "system", "content": SYSTEM_VOICE},
                   {"role": "user", "content": "\n".join(user)}], num_predict=2400)
     body = body.strip().removeprefix("```markdown").removeprefix("```").removesuffix("```").strip()

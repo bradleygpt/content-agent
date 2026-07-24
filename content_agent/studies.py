@@ -80,6 +80,33 @@ def evidence_for(study_id: str) -> dict | None:
                 "evidence": resc.build_recovery_block(key, entry),
                 "provenance": {"artifact": "deliverables/relational/recovery_stats.json",
                                "study_key": key, "proxy": entry.get("proxy")}}
+    if kind == "digest":
+        # THE DAILY MEASURED DIGEST. key is a session date ("2026-07-23") or "" for the latest settled
+        # one. Assembly and rendering both live in markets-llm (generation/digest_core), same law as
+        # every other block: the evidence a draft is built from is what the engine itself would say.
+        # Citations are attached here, from content-agent's primary-source layer, and are VERBATIM.
+        sys.path.insert(0, str(MLL / "generation"))
+        import digest_core as dc
+        try:
+            digest = dc.build_digest(key or None)
+        except (FileNotFoundError, ValueError):
+            return None
+        try:
+            from .attribution import citations_for
+            digest["citations"] = citations_for(digest["as_of"])
+        except Exception:
+            digest["citations"] = []      # no primary source found is a normal outcome: omit, never invent
+        lead = digest["lead"]
+        n_cross = len(digest["crossings"])
+        return {"study_id": f"digest:{digest['as_of']}",
+                "title_hint": (f"measured session digest — {digest['as_of']}"
+                               + (f", {n_cross} threshold crossing(s)" if n_cross
+                                  else ", sector dispersion")),
+                "evidence": dc.build_digest_block(digest),
+                "digest": digest,
+                "provenance": {"artifact": "deliverables/relational/conditional_stats.json",
+                               "study_key": digest["as_of"], "lead": lead, "crossings": n_cross,
+                               "substrate": "yahoo", "citations": len(digest["citations"])}}
     if kind == "pair":
         pair = tuple(key.split("|"))
         ev = resc.load_evidence(pair)

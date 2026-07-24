@@ -102,8 +102,34 @@ def chart_fomc_distribution(event_key: str = "fomc_meeting", out_path: Path | No
         template_name="fomc_distribution")
 
 
+def chart_digest_distribution(digest: dict, *, horizon: int = 1, out_path: Path | None = None) -> dict:
+    """Today's move drawn inside the historical distribution of comparable days. Renders the DEEPEST
+    crossing of the session; returns None when the session had no crossing (a dispersion-led digest has
+    no conditional distribution to chart, and inventing one would be the whole failure this format
+    guards against)."""
+    if not digest.get("crossings"):
+        return None
+    c = digest["crossings"][0]                       # crossings are sorted deepest-first
+    f = c["stats"]["forward"].get(str(horizon), {})
+    if not f.get("n"):
+        return None
+    cr = c["stats"]["crisis"]
+    n_crisis = cr.get("y2008", 0) + cr.get("y2020", 0)
+    out = out_path or OUT_CHARTS / f"digest_{digest['as_of']}_{c['name']}_h{horizon}.png"
+    return chart_core.chart_conditional_distribution(
+        forward=f, forward_ex_crisis=f.get("ex_crisis", {}), instances_crisis=n_crisis,
+        today_change=c["change"], horizon=horizon, threshold_pct=c["threshold_pct"],
+        asset_label=c["label"], samples=f.get("samples"), out_path=out, pub_name=PUB_NAME,
+        source="the relational engine (Yahoo substrate)",
+        window_label=f"{c['coverage_start']}..{digest['as_of']}",
+        title=f"{c['label']}: what followed comparable declines",
+        subtitle=(f"Sessions since {c['coverage_start']} with a decline of {c['threshold_pct']:g}% or "
+                  f"more, and the return over the next {horizon} session(s)."))
+
+
 CHART_BUILDERS = {
     "midterm_overlay": chart_midterm_overlay,
     "sector_dispersion": chart_sector_dispersion,
     "fomc_distribution": chart_fomc_distribution,
+    "digest_distribution": chart_digest_distribution,
 }
