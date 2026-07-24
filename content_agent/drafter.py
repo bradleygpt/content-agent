@@ -87,16 +87,41 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 # dispersion-led session genuinely has no conditional distribution, and reaching for one is the lie.
 DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 - First line: "# <title>" naming the session and what actually moved. No clickbait, no market narrative.
-- 350-650 words. Shorter than a flagship by design: a session is one day of evidence, not a study.
+- 350-650 words, and treat 650 as a hard ceiling. Shorter than a flagship by design: a session is one
+  day of evidence, not a study. If you are running long you are transcribing the evidence block — stop
+  and cut, do not keep listing numbers.
 - STRUCTURE — use ONLY the sections the evidence block actually contains, in this order, as "## " headers:
   "The mark", "The context", "Next session", "Full recovery". If the evidence has no SECTION 3/4 (no
   threshold crossing this session), WRITE ONLY "The mark" and "The context" and STOP. Do not substitute
   another study, do not reach for history that is not in the block, do not pad. A short honest digest is
   the correct output on a quiet session.
-- THE MEDIAN RULE — the hardest constraint here, and it is checked mechanically: EVERY median you write
-  must appear in the SAME SENTENCE as its hit rate and its N. Write "the median next session was 0.21%,
-  positive in 43 of 78 instances (N=78)", never "the median next session was 0.21%". A median in a
-  sentence without its hit rate and N is a FAILED DRAFT.
+
+- ONE HORIZON IS THE SPINE. The evidence marks a horizon [THE SPINE] — the 20-session forward
+  distribution. That is the piece's answer and the only horizon that gets a full treatment. The
+  1-session and 5-session figures are marked [supporting detail]: mention them ONCE, together, in a
+  single short sentence, and only to show that the near term is noisier than the 20-session picture.
+  DO NOT walk through every horizon for every anchor. Six horizon paragraphs is the failure mode this
+  instruction exists to prevent.
+- NAME HORIZONS IN PLAIN ENGLISH, exactly as the evidence does: "over the next 20 sessions", "over the
+  next 5 sessions", "the next session". NEVER write "the median next session with a +5 period" or any
+  other mangling of the horizon — a 5-session horizon is not a "next session".
+- WHEN TWO ANCHORS CROSS, THE SECOND MUST READ AS PROSE, NOT AS A SECOND FILL-IN OF THE FIRST'S
+  TEMPLATE. Do not repeat the sentence shapes you used for the first anchor. Lead the second with what
+  makes it DIFFERENT — a shorter history, a different crisis split, a faster or slower recovery — and
+  compare it to the first in words. If the two anchors are genuinely similar, say so in one sentence
+  rather than restating both sets of numbers.
+- "FULL RECOVERY" IS THE PAYOFF SECTION. "How long did it take to get back?" is the question the reader
+  actually has, and the number a confident market account never gives them. Give it the most weight of
+  any section: real sentences, the crisis-vs-ordinary contrast spelled out, and the censored instance
+  named. It is not the fourth item in a list.
+
+- THE MEDIAN RULE — the hardest constraint, and it is checked mechanically. Every median must appear in
+  the SAME SENTENCE as its companions, and WHICH companions depends on what it measures:
+    * a RETURN median needs its hit rate AND its N: "over the next 20 sessions the median was 1.7%,
+      positive in 26 of 46 instances (N=46)";
+    * a RECOVERY-TIME median needs its RANGE AND its N: "a median of 542 sessions, ranging from 20 to
+      672, across 46 recovered instances". A duration has NO hit rate — never invent one.
+  A median without its companions in the same sentence is a FAILED DRAFT.
 - AVERAGES ARE FORBIDDEN ENTIRELY. Never write "average", "on average", or "mean". These distributions
   are reported as median + hit rate + range + N, because the spread is the content.
 - NO CAUSATION, ANYWHERE. The context section reports what else moved on the same session. You may write

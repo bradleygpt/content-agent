@@ -14,6 +14,8 @@ adapter. Ships OFF; see queue_store for the flip criteria + tripwire.
 from __future__ import annotations
 import argparse
 import datetime as dt
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -156,6 +158,99 @@ def _ensure_queue_server():
     print("[daily] queue server was down — respawned")
 
 
+# ======================================================================================================
+# THE DAILY MEASURED DIGEST — refresh, VERIFY, generate. Never generate on unverified prices.
+# ======================================================================================================
+def _refresh_substrate() -> tuple[bool, str]:
+    """Refresh the Yahoo digest substrate and the sector-ETF cache, then VERIFY every series is current.
+    -> (ok, detail). ok=False means the digest must not run this session.
+
+    Both refreshers honour the session gate, so a mid-session run stores nothing rather than storing a
+    provisional bar. The verify step is a SEPARATE call to --check after the refresh: a fetch that
+    silently failed leaves the old cache in place and looks like success from the exit code alone."""
+    mll = Path(CFG["markets_llm_root"])
+    py = CFG.get("digest", {}).get("python", sys.executable)
+    for script, label in [("relational/fetch_digest.py", "digest substrate"),
+                          ("relational/fetch_sectors.py", "sector ETFs")]:
+        try:
+            r = subprocess.run([py, script], cwd=str(mll), capture_output=True, text=True, timeout=900)
+            tail = (r.stdout or r.stderr or "").strip().splitlines()[-1:] or [""]
+            print(f"[digest] refresh {label}: exit {r.returncode} — {tail[0][:110]}")
+        except Exception as e:
+            return False, f"{label} refresh raised {type(e).__name__}: {e}"
+    # THE GATE: a non-zero --check means at least one series is stale or missing.
+    try:
+        r = subprocess.run([py, "relational/fetch_digest.py", "--check"], cwd=str(mll),
+                           capture_output=True, text=True, timeout=300)
+    except Exception as e:
+        return False, f"staleness check raised {type(e).__name__}: {e}"
+    if r.returncode != 0:
+        bad = [ln.strip() for ln in (r.stdout or "").splitlines() if "FROZEN" in ln or "MISSING" in ln]
+        return False, "; ".join(bad)[:400] or "staleness check failed"
+    return True, "all series current"
+
+
+def _run_digest(args) -> None:
+    """One session's digest, or an explicit refusal. Never raises into the study pass."""
+    ok, detail = _refresh_substrate()
+    if not ok:
+        print(f"[digest] REFUSING to generate — substrate not current: {detail}")
+        print("[digest] a digest built on stale prices prints old closes as today's move; "
+              "no digest is the honest outcome.")
+        qs.log("digest_skipped_stale", reason=detail)
+        return
+
+    ev = evidence_for("digest:")
+    if not ev:
+        print("[digest] no settled session / missing conditional artifact — skipping")
+        qs.log("digest_skipped_no_evidence")
+        return
+    as_of = ev["provenance"]["study_key"]
+    # IDEMPOTENT: one digest per session. A second run the same day must not stack a duplicate — the
+    # same discipline the dedup guards enforce for studies, applied to the session key.
+    if any((d.get("provenance") or {}).get("study_key") == as_of
+           and (d.get("provenance") or {}).get("artifact", "").endswith("conditional_stats.json")
+           and d.get("status") in ("pending", "published", "approved")
+           for d in qs.list_drafts()):
+        print(f"[digest] session {as_of} already has a digest in the queue — skipping (idempotent)")
+        return
+
+    gcfg = CFG["gpu"]
+    free = gpu_free_for_drafting()[0] if args.now else wait_for_gpu(gcfg["attempts"],
+                                                                    gcfg["sleep_seconds"])
+    if not free:
+        print(f"[digest] GPU never freed ({gpu_free_for_drafting()[1]}) — skipping; the digest is "
+              f"session-dated and is NOT retried tomorrow")
+        qs.log("digest_skipped_gpu", as_of=as_of)
+        return
+
+    print(f"[digest] session {as_of} ({detail}); lead={ev['provenance']['lead']}, "
+          f"crossings={ev['provenance']['crossings']}")
+    prov = {**ev["provenance"], "study_id": ev["study_id"],
+            "drafted": dt.datetime.now().isoformat()}
+    trig = {"trigger": "digest", "study_id": ev["study_id"], "topic": ev["title_hint"]}
+    fl = _fidelity_gated(draft_flagship, ev["evidence"], topic=ev["title_hint"],
+                         evidence=ev["evidence"], news_hints=None)
+    d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"],
+                     ev["evidence"], trig)
+    print(f"[digest]   {d['id']} -> {d['status']} ({len(fl['body_md'].split())} words)")
+
+    # chart: deterministic, and only when the session actually had a crossing to chart
+    try:
+        from content_agent.charts import chart_digest_distribution
+        c = chart_digest_distribution(ev["digest"], horizon=20)
+        if c:
+            rec_path = qs.QUEUE / f"{d['id']}.json"
+            rec = json.loads(rec_path.read_text(encoding="utf-8"))
+            rec["chart"] = c
+            rec_path.write_text(json.dumps(rec, indent=2), encoding="utf-8")
+            print(f"[digest]   chart -> {Path(c['path']).name}")
+        else:
+            print("[digest]   no crossing this session — no distribution chart (correct, not a failure)")
+    except Exception as e:
+        print(f"[digest]   chart failed ({type(e).__name__}: {e}) — draft stands without it")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--now", action="store_true")
@@ -187,6 +282,22 @@ def main():
         return
 
     _ensure_queue_server()
+
+    # ============================ THE DAILY MEASURED DIGEST (D1) ============================
+    # Runs FIRST and on its OWN gate, before study drafting, because it is the session-dated piece:
+    # it is worth nothing tomorrow, whereas a study piece is worth the same whenever it is drafted.
+    #
+    # ORDERING IS THE WHOLE POINT — refresh, VERIFY, then generate:
+    #   1. refresh the Yahoo substrate (session-gated: a bar dated today is stored only after the
+    #      close, so an intraday run stores nothing rather than storing a provisional number);
+    #   2. re-check every series against its staleness tolerance;
+    #   3. ONLY THEN generate. If ANY series is stale the digest DOES NOT RUN this session.
+    # A digest built on stale prices is worse than no digest: it prints last week's close as today's
+    # move, with full confidence and every honesty label intact. Silence is the honest failure mode,
+    # and the refusal is logged so a run of quiet days is visible rather than mysterious.
+    if CFG.get("digest", {}).get("enabled") and not args.study and not args.notes_only:
+        _run_digest(args)
+
     st = qs.load_state()
     if args.study:
         # EXPLICIT human request overrides the dedup guards — they exist to stop the AUTOMATION from

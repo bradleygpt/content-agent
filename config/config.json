@@ -56,5 +56,10 @@
       "q-fin.ST",
       "q-fin.TR"
     ]
+  },
+  "digest": {
+    "enabled": true,
+    "python": "C:/Users/bmhar/code/philosophy-llm/.venv/Scripts/python.exe",
+    "_why_python": "markets-llm's scripts need pandas/yfinance; that venv is markets-llm's documented interpreter (its README)"
   }
 }
