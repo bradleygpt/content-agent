@@ -138,6 +138,23 @@ def main():
     check("causal rule does NOT fire on a non-digest study",
           not check_causal_claims("The drawdown was caused by the credit crisis.", RECOVERY_EV))
 
+    # --- CENSORED label detection (GENERAL checker regression, not digest-specific) ----------------
+    # Lives here because this is the active checker self-test. The evidence builders render required
+    # labels as "  - CENSORED: ..." bullets and the original anchor matched none of them, so the label
+    # was never required and any draft that carried it was failed for INVENTING it — a rule that
+    # punishes obedience. Hit recovery:ANCHOR_SPY and then recovery:ANCHOR_NASDAQ in the first nightly.
+    import re as _re
+    from content_agent.fidelity import LABELS as _L
+    _crx = _L["CENSORED"][0]
+    for txt, want, why in [
+            ("  - CENSORED: an ongoing drawdown has unknown recovery time", True, "bullet (real form)"),
+            ("  * CENSORED: unknown", True, "asterisk bullet"),
+            ("CENSORED: 1 episode still underwater", True, "bare line"),
+            ("[CENSORED] unknown", True, "bracket form"),
+            ("the data was censored in some way", False, "prose mention must NOT require it"),
+            ("we discuss censored observations", False, "word in a sentence")]:
+        check(f"CENSORED evidence detection — {why}", bool(_re.search(_crx, txt)) is want)
+
     # --- COMPLETENESS -----------------------------------------------------------------------------
     # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
     # validated what it said; none noticed what it never reached.

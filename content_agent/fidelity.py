@@ -125,7 +125,13 @@ LABELS = {
     "SINGLE-INSTANCE": (r"SINGLE[- ]INSTANCE",
                         r"single[\s-]instance|one\s+historical\s+(?:instance|episode)|n\s*=\s*1|"
                         r"each\s+(?:episode|regime|instance)\s+is\s+one"),
-    "CENSORED": (r"(?m)^\s*CENSORED: |\[CENSORED",
+    # The optional list marker is load-bearing. Every evidence builder renders its required labels as
+    # "  - CENSORED: ..." bullets, and the original anchor (^\s*CENSORED:) matched none of them — so the
+    # label was never REQUIRED, and a draft that dutifully carried it was failed for INVENTING it. A rule
+    # that punishes obedience. Observed twice in production (recovery:ANCHOR_SPY 2026-07-24, then
+    # recovery:ANCHOR_NASDAQ in the first nightly). CENSORED is the only anchored label regex; the rest
+    # match bare, which is why only this one was affected.
+    "CENSORED": (r"(?m)^\s*(?:[-*]\s*)?CENSORED: |\[CENSORED",
                  r"censored|still\s+underwater|(?:never|not\s+yet)\s+recovered|unknown\s+recovery"),
     "INDEX-MEASURED": (r"INDEX-MEASURED",
                        r"index[\s-]measured|measured\s+on\s+the\s+(?:\w+\s+)?index|index\s+drawdowns|"
