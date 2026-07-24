@@ -131,6 +131,10 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 - If the evidence has a SECTION 5 (primary-source citations), reproduce each headline EXACTLY as printed,
   with its source and link. Do not summarise, characterise, or connect a filing to a price move. If there
   is no SECTION 5, say nothing about news at all.
+- NEVER WRITE A LABEL NAME THAT IS NOT IN THE EVIDENCE BLOCK. Observed three times: drafts stamping
+  [SURVIVORSHIP] on digest evidence that never mentions it, apparently copying the word from elsewhere
+  in these instructions. Read the evidence's "REQUIRED HONESTY LABELS" list and use ONLY those names. A
+  caveat the evidence never made is a false claim, exactly like a false number, and it hard-fails.
 - Carry EVERY honesty label the evidence requires, by name: NOT-A-SIGNAL above all (these distributions
   describe what followed comparable past days — not a forecast, not a probability for tomorrow), plus
   SECTOR-PROXY, INDEX-MEASURED, CENSORED and SMALL-N where the block carries them.

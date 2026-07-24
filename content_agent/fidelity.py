@@ -36,9 +36,15 @@ _UNIT_RX = [
     ("week", r"weeks?\b|wks?\b"),
     ("day", r"days?\b"),
     ("year", r"years?\b|yrs?\b"),
+    # "sessions?" added 2026-07-24: the Daily Digest denominates BOTH its horizons ("over the next 20
+    # sessions") and its recovery times ("a median of 542 sessions") in sessions, and the lexicon never
+    # knew the word. "the median return over the next 20 sessions was 1.73%" therefore resolved 20 to
+    # PCT from the trailing 1.73% and hard-failed against evidence carrying 20 as a count. EVERY digest
+    # that states a horizon in prose would have failed this way — a gap opened by D1 introducing a new
+    # unit, not by the drafter.
     ("count", r"events?\b|meetings?\b|midterms?\b|elections?\b|episodes?\b|cases?\b|instances?\b|"
               r"drawdowns?\b|anecdotes?\b|stocks?\b|names?\b|(?:data\s+)?points?\b|occurrences?\b|"
-              r"cycles?\b|samples?\b"),
+              r"cycles?\b|samples?\b|sessions?\b"),
     ("corr", r"corr(?:elation)?s?\b"),
 ]
 _DATE_RX = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -227,12 +233,14 @@ _AVERAGE_RX = re.compile(r"\baverage[ds]?\b|\baverage\b|\bmean\b(?!\s*(?:s\b|ing
 # temporal in this register ("as measured", "after the close") and flagging them would train the writer to
 # fight the checker rather than the claim. "amid" and "on the back of" ARE included — they are causal
 # assertions wearing a hedge, which is exactly the move this class must not make.
-# "reflect" carries a negative lookahead on "in": "the move reflects concern" asserts a cause, while
-# "factors not reflected in this data set" is a COVERAGE DISCLAIMER — the opposite of a causal claim,
-# and exactly the kind of honest hedging this publication wants. Caught in the D1 gate.
+# "reflect" was REMOVED after producing only false positives in production: "factors not reflected in
+# this data set" (a coverage disclaimer) and "this record reflects settled prices at the close" (a
+# description of what the data IS). Its genuine causal use ("the move reflects concern") is always
+# accompanied by a stronger marker, so nothing is lost. A rule that only ever fires wrongly is worse
+# than no rule: it teaches the writer to fight the checker instead of the claim.
 _CAUSAL_RX = re.compile(
     r"\b(?:drove|driven\s+by|caused|causing|triggered|sparked|fuel(?:l?ed)|led\s+to|"
-    r"explains?|explained\s+by|reflect(?:s|ed|ing)(?!\s+in\b)|respond(?:ed|ing)\s+to|in\s+response\s+to|"
+    r"explains?|explained\s+by|respond(?:ed|ing)\s+to|in\s+response\s+to|"
     r"because\s+of|due\s+to|thanks\s+to|owing\s+to|on\s+the\s+back\s+of|attributable\s+to|"
     r"blamed\s+on|result(?:ed|ing)\s+from|prompted\s+by|weighed\s+on|dragged\s+(?:down\s+)?by|"
     r"boosted\s+by|lifted\s+by|pressured\s+by|amid)\b|\b\w+-driven\b", re.I)
@@ -267,8 +275,10 @@ def check_completeness(draft: str, evidence: str) -> list[dict]:
         if marker in evidence and not re.search(heading_rx, draft, re.I):
             out.append({"type": "MISSING-SECTION", "token": marker,
                         "detail": f"the evidence carries {marker} but the draft has no matching "
-                                  f"section — a digest that drops a section it has evidence for is "
-                                  f"incomplete, not concise"})
+                                  f"'## ' heading. The section's numbers may be present in running "
+                                  f"prose — the FORMAT is still wrong: these four headings are what "
+                                  f"make a digest scannable and a section droppable-by-accident "
+                                  f"otherwise"})
     return out
 
 
