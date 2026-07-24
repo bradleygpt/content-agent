@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from content_agent import queue_store as qs                      # noqa: E402
-from content_agent.studies import CFG, evidence_for              # noqa: E402
+from content_agent.studies import CFG, evidence_for, list_library              # noqa: E402
 from content_agent.triggers import calendar_triggers, notable_results, cadence_trigger  # noqa: E402
 from content_agent.news import topical_hints                     # noqa: E402
 from content_agent.gpu import wait_for_gpu, gpu_free_for_drafting  # noqa: E402
@@ -62,6 +62,61 @@ def days_since_last_draft(study_id: str, drafts: list | None = None, now: dt.dat
     if not stamps:
         return None
     return (now - dt.datetime.fromisoformat(max(stamps))).total_seconds() / 86400.0
+
+
+def blocked_reason(study_id: str):
+    """The dedup guards as a PREDICATE -> (reason, audit_event, extra) or (None, None, {}).
+
+    Two guards, both born from the 2026-07-23 loop: calendar_triggers fires every day an event sits in
+    its countdown window with no memory of what it produced (25 near-identical midterm drafts in 8 days
+    on an already-published study), while cadence_trigger correctly skips published studies but never
+    got a turn because calendar takes precedence."""
+    cooldown = CFG["triggers"].get("redraft_cooldown_days", 7)
+    since = days_since_last_draft(study_id)
+    if since is not None and since < cooldown:
+        return (f"drafted {since:.1f}d ago (redraft_cooldown_days={cooldown}) — a countdown piece is "
+                "meant to recur weekly, not daily", "daily_skipped_cooldown",
+                {"days_since": round(since, 2), "cooldown_days": cooldown})
+    max_pending = CFG["triggers"].get("max_pending_per_study", 3)
+    n = duplicate_pending(study_id)
+    if n >= max_pending:
+        return (f"{n} pending draft(s) already awaiting review (max_pending_per_study={max_pending})",
+                "daily_skipped_duplicate", {"pending": n, "max_pending": max_pending})
+    return None, None, {}
+
+
+def _select_trigger(st: dict):
+    """Pick the first candidate the guards allow — FALL THROUGH, never stop at the first block.
+
+    Blocking a trigger must not idle the whole pipeline: when the midterm countdown is on cooldown there
+    are (as of 2026-07-23) 17 never-drafted studies waiting. Order: real triggers by precedence
+    (calendar > notable > cadence), then a LIBRARY BACKFILL over unpublished studies. Backfill never
+    includes already-published studies — redrafting published material is the redundancy just removed."""
+    trigs = calendar_triggers()
+    trigs += notable_results(st["results_watermark"])
+    cad = cadence_trigger(st["last_flagship_ts"], set(st["published_study_ids"]))
+    if cad:
+        trigs.append(cad)
+    published = set(st["published_study_ids"])
+    seen = {t["study_id"] for t in trigs}
+    for sid in list_library():
+        if sid not in seen and sid not in published:
+            trigs.append({"trigger": "backfill", "study_id": sid,
+                          "topic": "library backfill — measured study not yet published"})
+            seen.add(sid)
+    if not trigs:
+        print("[daily] no trigger fired and no unpublished study in the library; nothing to draft")
+        return None
+    for c in trigs:
+        why, event, extra = blocked_reason(c["study_id"])
+        if why:
+            print(f"[daily]   skip {c['study_id']} ({c['trigger']}): {why}")
+            qs.log(event, study_id=c["study_id"], trigger=c["trigger"], **extra)
+            continue
+        return c
+    print(f"[daily] all {len(trigs)} candidate studies are on cooldown or already queued; "
+          "nothing to draft this pass")
+    return None
 
 
 def _note_focuses(study_id: str) -> list[str]:
@@ -108,6 +163,8 @@ def main():
     ap.add_argument("--topic", default=None, help="editorial framing override for the flagship")
     ap.add_argument("--skip-notes", action="store_true")
     ap.add_argument("--notes-only", action="store_true")
+    ap.add_argument("--max-notes", type=int, default=None,
+                    help="cap notes for this run (default: drafting.notes_per_flagship)")
     ap.add_argument("--research-only", action="store_true",
                     help="run ONLY the hypothesis-intake nightly (register #6 C-1)")
     args = ap.parse_args()
@@ -132,45 +189,16 @@ def main():
     _ensure_queue_server()
     st = qs.load_state()
     if args.study:
+        # EXPLICIT human request overrides the dedup guards — they exist to stop the AUTOMATION from
+        # looping, never to refuse a person who asked for a specific study by name.
         trig = {"trigger": "manual", "study_id": args.study,
                 "topic": args.topic or "manual/launch draft"}
+        print(f"[daily] trigger: manual -> {trig['study_id']} (guards bypassed: explicit request)")
     else:
-        trigs = calendar_triggers()
-        trigs += notable_results(st["results_watermark"])
-        cad = cadence_trigger(st["last_flagship_ts"], set(st["published_study_ids"]))
-        if cad:
-            trigs.append(cad)
-        if not trigs:
-            print("[daily] no trigger fired; nothing to draft")
+        trig = _select_trigger(st)
+        if trig is None:
             return
-        trig = trigs[0]
-    print(f"[daily] trigger: {trig['trigger']} -> {trig['study_id']} ({trig.get('topic','')[:80]})")
-
-    # DEDUP GUARD (2026-07-23). calendar_triggers fires EVERY day the event sits inside its countdown
-    # window and has no memory of what it already produced — unlike cadence_trigger, which skips studies
-    # in published_study_ids. That asymmetry generated 25 near-identical midterm drafts over 8 days
-    # (07-16..07-23) on a study that was ALREADY published. The queue is the memory: if this study still
-    # has unreviewed drafts waiting, another pass adds noise, not coverage. Clearing the queue lets the
-    # next pass regenerate fresh (with an updated weeks_out).
-    cooldown = CFG["triggers"].get("redraft_cooldown_days", 7)
-    since = days_since_last_draft(trig["study_id"])
-    if since is not None and since < cooldown:
-        print(f"[daily] SKIP: {trig['study_id']} was drafted {since:.1f}d ago "
-              f"(redraft_cooldown_days={cooldown}) — a countdown piece is meant to recur weekly, not "
-              f"daily; redrafting now would just restate the same measured study.")
-        qs.log("daily_skipped_cooldown", study_id=trig["study_id"], days_since=round(since, 2),
-               cooldown_days=cooldown, trigger=trig["trigger"])
-        return
-
-    max_pending = CFG["triggers"].get("max_pending_per_study", 3)
-    n_same = duplicate_pending(trig["study_id"])
-    if n_same >= max_pending:
-        print(f"[daily] SKIP: {trig['study_id']} already has {n_same} pending draft(s) "
-              f"awaiting review (max_pending_per_study={max_pending}) — regenerating would duplicate "
-              f"work already in the queue. Review or clear them and the next pass drafts fresh.")
-        qs.log("daily_skipped_duplicate", study_id=trig["study_id"], pending=n_same,
-               max_pending=max_pending, trigger=trig["trigger"])
-        return
+        print(f"[daily] trigger: {trig['trigger']} -> {trig['study_id']} ({trig.get('topic','')[:80]})")
 
     ev = evidence_for(trig["study_id"])
     if not ev:
@@ -207,7 +235,8 @@ def main():
         print(f"[daily]   flagship {d['id']} -> {d['status']}")
 
     if not args.skip_notes:
-        for focus in _note_focuses(trig["study_id"])[:CFG["drafting"]["notes_per_flagship"]]:
+        n_notes = args.max_notes if args.max_notes is not None else CFG["drafting"]["notes_per_flagship"]
+        for focus in _note_focuses(trig["study_id"])[:n_notes]:
             nt = _fidelity_gated(draft_note, ev_check, evidence=ev["evidence"], stat_focus=focus)
             nd = qs.new_draft("note", nt["title"], nt["body_md"], prov, nt["fidelity"], ev_check, trig)
             print(f"[daily]   note {nd['id']} -> {nd['status']}")

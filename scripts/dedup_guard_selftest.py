@@ -67,6 +67,47 @@ def main():
     check("cooldown is per-study (other study unaffected)",
           days_since_last_draft(FOMC, mixed, NOW) is None)
 
+    # --- fall-through: a blocked trigger must not idle the pass ------------------------------------
+    import run_daily
+    orig_dp, orig_ds = run_daily.duplicate_pending, run_daily.days_since_last_draft
+    try:
+        # midterm on cooldown, everything else free
+        run_daily.days_since_last_draft = lambda sid, *a, **k: 0.2 if "midterm" in sid else None
+        run_daily.duplicate_pending = lambda sid, *a, **k: 0
+        run_daily.calendar_triggers = lambda *a, **k: [
+            {"trigger": "calendar", "study_id": MID, "topic": "countdown"}]
+        run_daily.notable_results = lambda *a, **k: []
+        run_daily.cadence_trigger = lambda *a, **k: {"trigger": "cadence",
+                                                     "study_id": "event:pres_election", "topic": "x"}
+        run_daily.list_library = lambda: [MID, "event:pres_election", "recovery:ANCHOR_SPY"]
+        run_daily.qs.log = lambda *a, **k: None
+        state = {"results_watermark": 0, "last_flagship_ts": 0, "published_study_ids": []}
+        got = run_daily._select_trigger(state)
+        check("blocked trigger FALLS THROUGH to the next candidate",
+              got is not None and got["study_id"] == "event:pres_election")
+
+        # every trigger blocked -> library backfill supplies an unpublished study
+        run_daily.days_since_last_draft = lambda sid, *a, **k: (0.2 if sid in
+                                                                (MID, "event:pres_election") else None)
+        got2 = run_daily._select_trigger(state)
+        check("all triggers blocked -> backfill picks an unpublished library study",
+              got2 is not None and got2["study_id"] == "recovery:ANCHOR_SPY"
+              and got2["trigger"] == "backfill")
+
+        # backfill NEVER redrafts an already-published study
+        state_pub = {**state, "published_study_ids": ["recovery:ANCHOR_SPY"]}
+        run_daily.cadence_trigger = lambda *a, **k: None
+        got3 = run_daily._select_trigger(state_pub)
+        check("backfill excludes already-published studies", got3 is None)
+
+        # nothing blocked -> highest-precedence trigger still wins (no behavior change)
+        run_daily.days_since_last_draft = lambda sid, *a, **k: None
+        got4 = run_daily._select_trigger(state)
+        check("nothing blocked -> precedence unchanged (calendar first)",
+              got4 is not None and got4["study_id"] == MID and got4["trigger"] == "calendar")
+    finally:
+        run_daily.duplicate_pending, run_daily.days_since_last_draft = orig_dp, orig_ds
+
     print("DEDUP-GUARD SELF-TEST (hermetic fixtures; live queue untouched)\n")
     for good, name in checks:
         print(f"  {'OK ' if good else 'XX '} {name}")
