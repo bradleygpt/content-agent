@@ -100,11 +100,12 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
   the block, do not pad. A short honest digest is the correct output on a quiet session.
 
 - THE TITLE IS SUBJECT TO EVERY RULE THE BODY IS. First line "# <title>", naming the session and what
-  actually moved. NO CAUSAL WORDS IN THE TITLE — not "amid", not "as", not "on", not "driven by",
-  "after", "despite" or "on the back of". "X and Y Decline Amid Rising Yields" asserts a cause the
-  evidence never measured, and a headline asserts it louder than a sentence does. Name what moved and
-  by how much, or name what moved and stop: "Consumer Discretionary and Communication Services Fall;
-  Sector Spread 6.34 Points". No clickbait, no market narrative.
+  actually moved. NO CAUSAL WORDS IN THE TITLE — not amid, as, on, driven by, after, despite, or on
+  the back of. A headline that links two moves asserts a cause the evidence never measured, and it
+  asserts it louder than a sentence does. Build the title from THIS session's own figures: name the
+  anchors that moved and either their sizes or the sector spread, joined by a semicolon rather than a
+  connective. WRITE YOUR OWN — do not reuse any wording from these instructions. No clickbait, no
+  market narrative.
 
 - 350-650 words, and treat 650 as a hard ceiling. Shorter than a flagship by design: a session is one
   day of evidence, not a study. If you are running long you are transcribing the evidence block — stop
@@ -131,27 +132,31 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 
 - THE MEDIAN RULE — the hardest constraint, and it is checked mechanically. Every median must appear in
   the SAME SENTENCE as its companions, and WHICH companions depends on what it measures:
-    * a RETURN median needs its hit rate AND its N: "over the next 20 sessions the median was 1.7%,
-      positive in 26 of 46 instances (N=46)";
-    * a RECOVERY-TIME median needs its RANGE AND its N: "a median of 542 sessions, ranging from 20 to
-      672, across 46 recovered instances". A duration has NO hit rate — never invent one.
+    * a RETURN median needs its hit rate AND its N, in this shape: over the next <H> sessions the
+      median was <median>%, positive in <hits> of <N> instances (N=<N>);
+    * a RECOVERY-TIME median needs its RANGE AND its N, in this shape: a median of <median> sessions,
+      ranging from <min> to <max>, across <N> recovered instances. A duration has NO hit rate — never
+      invent one.
+  The angle brackets are PLACEHOLDERS. Substitute this session's own figures from the evidence block;
+  never carry a number, a ticker or a phrase out of these instructions into the piece.
   A median without its companions in the same sentence is a FAILED DRAFT.
 - SPECIFICALLY FORBIDDEN — each of these hard-fails the check:
     * THE WORD "AVERAGE", in any form, and "mean" as a statistic. Not "the average recovery", not
       "on average", not "a faster average recovery time". MEDIAN ONLY, always with its N and either its
       hit rate (returns) or its range (durations). Averaging a distribution whose entire content is its
       spread destroys the thing being reported.
-    * WORD-NUMBERS and ROUNDED FORMS — "twenty sessions", "about 540 sessions", "roughly 2%", "more
-      than a year". Every evidence figure is quoted as VERBATIM DIGITS with its exact unit.
+    * WORD-NUMBERS and ROUNDED FORMS — a spelled-out count, an approximated duration, a rounded percentage, a
+      vague span. Every evidence figure is quoted as VERBATIM DIGITS with its exact unit.
     * ANY LABEL NAME NOT PRESENT IN THE EVIDENCE BLOCK. Read the evidence's "REQUIRED HONESTY LABELS"
       list and use ONLY those names. Do NOT copy label names out of these instructions or from other
       pieces you have seen — [SURVIVORSHIP] has now been stamped three times onto digest evidence that
       never mentions it. A caveat the evidence never made is a false claim, exactly like a false
       number, and it fails the draft just as hard.
 - NO CAUSATION, ANYWHERE. The context section reports what else moved on the same session. You may write
-  "crude rose 6.17% the same session". You may NOT write that it drove, caused, triggered, explains,
+  a bare co-movement statement (one series, its move, "the same session"). You may NOT write that it drove, caused, triggered, explains,
   reflects, or was behind anything, and you may not imply it with "as", "amid", "on the back of", "after"
-  used causally, or "-driven". If you cannot say it without asserting a cause, say only the two numbers.
+  used causally, or a "-driven" compound. If you cannot say it without asserting a cause, give only the
+  two figures side by side.
 - If the evidence has a SECTION 5 (primary-source citations), reproduce each headline EXACTLY as printed,
   with its source and link. Do not summarise, characterise, or connect a filing to a price move. If there
   is no SECTION 5, say nothing about news at all.

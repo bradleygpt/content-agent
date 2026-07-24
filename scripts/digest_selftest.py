@@ -90,6 +90,41 @@ def main():
               "That means the range is wide."]:
         check(f"not flagged as an average: \"{w[:32]}…\"", "BARE-AVERAGE" not in fails(w))
 
+    # --- BARE-AVERAGE must not fire on EVIDENCE-MANDATED text -------------------------------------
+    # The CENSORED label reads "...never imputed or averaged in" — a phrase whose content is a
+    # PROHIBITION on averaging, which the drafter is required to carry. Failing a draft for reproducing
+    # it was the fourth time this module penalised obedience.
+    _cens_ev = (DIGEST_EV + "\n  - CENSORED: 1 instance(s) have NOT regained the prior high — recovery "
+                            "time UNKNOWN, never imputed or averaged in.\n")
+    check("quoting the evidence's own 'never imputed or averaged in' does NOT fire",
+          "BARE-AVERAGE" not in {f["type"] for f in check_median_discipline(
+              "One instance has not regained its prior high — recovery time UNKNOWN, never imputed "
+              "or averaged in.", _cens_ev)})
+    check("but a REAL average in the same draft still fires",
+          "BARE-AVERAGE" in {f["type"] for f in check_median_discipline(
+              "The average next session was 0.2%.", _cens_ev)})
+    check("an average smuggled into an otherwise-quoted sentence still fires",
+          "BARE-AVERAGE" in {f["type"] for f in check_median_discipline(
+              "The average was 0.2%, and it is never imputed.", _cens_ev)})
+
+    # --- UNIT EQUIVALENCE: day <-> count, and NOTHING else ----------------------------------------
+    # "16 of these days fell in 2008" vs evidence "16 of these fell in 2008" — the same quantity,
+    # accurately labelled, and it was hard-failing.
+    _ev_ct = "CRISIS CLUSTERING: 16 of these instances fell in 2008; recovery median 542 sessions."
+    _r = run_fidelity("16 of these days fell in 2008.", _ev_ct)
+    check("draft 'days' binds to evidence 'instances' (day <-> count)",
+          not any(f["type"] == "UNIT-MISMATCH" for f in _r["failures"]))
+    # ...but a session is NOT a calendar day, and that must still fail
+    _r2 = run_fidelity("Recovery took 542 days.", _ev_ct)
+    check("'542 days' vs evidence '542 sessions' STILL fails (session != day)",
+          any(f["type"] == "UNIT-MISMATCH" for f in _r2["failures"]))
+    _r3 = run_fidelity("Recovery took 542 sessions.", _ev_ct)
+    check("'542 sessions' binds correctly", not any(f["type"] == "UNIT-MISMATCH"
+                                                    for f in _r3["failures"]))
+    _r4 = run_fidelity("It took 3 weeks.", "recovery median 3 months")
+    check("months-vs-weeks is STILL a hard fail (the bug this module exists for)",
+          any(f["type"] == "UNIT-MISMATCH" for f in _r4["failures"]))
+
     # --- CAUSAL CLAIMS ----------------------------------------------------------------------------
     # The failure every other check waves through: a causal sentence binds every number and carries
     # every label. Found in the D1 gate by probing the checker with the failure modes the format exists

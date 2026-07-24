@@ -36,17 +36,48 @@ _UNIT_RX = [
     ("week", r"weeks?\b|wks?\b"),
     ("day", r"days?\b"),
     ("year", r"years?\b|yrs?\b"),
-    # "sessions?" added 2026-07-24: the Daily Digest denominates BOTH its horizons ("over the next 20
-    # sessions") and its recovery times ("a median of 542 sessions") in sessions, and the lexicon never
-    # knew the word. "the median return over the next 20 sessions was 1.73%" therefore resolved 20 to
-    # PCT from the trailing 1.73% and hard-failed against evidence carrying 20 as a count. EVERY digest
-    # that states a horizon in prose would have failed this way — a gap opened by D1 introducing a new
-    # unit, not by the drafter.
+    # "session" is its OWN unit, deliberately NOT folded into count. A trading session is not a calendar
+    # day: "542 sessions" is ~2.2 years, "542 days" is ~1.5. Keeping them distinct means a draft that
+    # writes days where the evidence says sessions still hard-fails, which is the whole point of unit
+    # binding. (The digest denominates both its horizons and its recovery times in sessions, so the
+    # lexicon has to know the word — without it, "over the next 20 sessions was 1.73%" resolved 20 to
+    # PCT from the trailing figure and failed every digest that stated a horizon in prose.)
+    ("session", r"sessions?\b"),
     ("count", r"events?\b|meetings?\b|midterms?\b|elections?\b|episodes?\b|cases?\b|instances?\b|"
               r"drawdowns?\b|anecdotes?\b|stocks?\b|names?\b|(?:data\s+)?points?\b|occurrences?\b|"
-              r"cycles?\b|samples?\b|sessions?\b"),
+              r"cycles?\b|samples?\b"),
     ("corr", r"corr(?:elation)?s?\b"),
 ]
+# UNIT EQUIVALENCE — deliberately ONE pair, and only in the direction that cannot hide an error.
+# A count of qualifying DAYS is the same quantity whether the writer calls them days or instances:
+# evidence "16 of these fell in 2008", draft "16 of these days fell in 2008" — accurate, and it was
+# hard-failing. day <-> count is therefore compatible. NOTHING else is: month/week/day stays strict
+# (the months-vs-weeks bug this module exists to kill), and session stays strict against day because a
+# trading session is not a calendar day.
+_UNIT_EQUIV = {"day": {"count"}, "count": {"day"}}
+
+
+_TIME_UNITS = {"session", "month", "week", "day", "year"}
+
+
+def _unit_ok(value: float, unit: str, ev_pairs: set) -> bool:
+    """Does (value, unit) bind, allowing only the day<->count equivalence above?
+
+    The alias is REFUSED when the evidence also carries this value under a different TIME unit. The
+    evidence side indexes a value under a neighbouring clause's unit as well as its own, so "recovery
+    median 542 sessions" can also register 542 as a count — without this guard a draft writing "542
+    days" would ride the count entry through the alias and the session-vs-day error would vanish.
+    Caught by the self-test, not by inspection."""
+    if (value, unit) in ev_pairs:
+        return True
+    for alt in _UNIT_EQUIV.get(unit, ()):
+        if (value, alt) in ev_pairs:
+            conflicting = {u for (v, u) in ev_pairs
+                           if v == value and u in _TIME_UNITS and u != unit}
+            return not conflicting
+    return False
+
+
 _DATE_RX = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # lookahead permits unit-fused forms ("14.0mo", "3.6-month"); digits/dots after are still barred so we
 # never split "0.5" out of "0.51"
@@ -225,6 +256,28 @@ _N_RX = re.compile(r"\bN\s*=\s*\d+|\b\d+\s+of\s+\d+\b|\bover\s+\d+\s+\w+|\bacros
 # counts — it is exactly the hedge this class must not use; "meanwhile"/"meaningful" are word-boundary
 # safe, and "means" as a verb is excluded explicitly).
 _AVERAGE_RX = re.compile(r"\baverage[ds]?\b|\baverage\b|\bmean\b(?!\s*(?:s\b|ing\b|t\b))", re.I)
+_WS_RX = re.compile(r"\s+")
+
+
+def _is_evidence_text(sentence: str, match: re.Match, evidence: str) -> bool:
+    """Is the flagged word part of text the EVIDENCE ITSELF mandates the draft carry?
+
+    The CENSORED label reads "recovery time UNKNOWN, never imputed or AVERAGED in" — a phrase whose
+    whole content is a prohibition on averaging, which the drafter is REQUIRED to carry. Failing a
+    draft for reproducing it is the fourth instance of this module penalising obedience, so the check
+    now asks whether the surrounding phrase is verbatim evidence before firing. Deliberately a WINDOW,
+    not the whole sentence: quoting a mandated phrase is protected, wrapping "the average was 0.2%"
+    inside an otherwise-quoted sentence is not."""
+    def norm(s: str) -> str:
+        return _WS_RX.sub(" ", re.sub(r"[^0-9a-z ]+", " ", s.lower())).strip()
+
+    # Window runs BACKWARD from the match and stops at it: the distinguishing text is what precedes
+    # the word, and anything after it risks trailing punctuation or the next sentence's first word
+    # (which is exactly what defeated the first attempt at this check).
+    lo = max(0, match.start() - 34)
+    window = norm(sentence[lo:match.end()])
+    window = window.split(" ", 1)[1] if " " in window else window      # drop a clipped leading word
+    return len(window) >= 12 and window in norm(evidence)
 
 
 # --- CAUSAL CLAIMS (Daily Measured Digest, D1-4) ----------------------------------------------------
@@ -340,7 +393,8 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
                 out.append({"type": "MEDIAN-WITHOUT-N", "token": "median (return)",
                             "detail": "a median return must carry its hit rate AND N in the same "
                                       f"sentence — a bare median reads as a forecast. sentence: {s[:180]}"})
-        if _AVERAGE_RX.search(s):
+        m = _AVERAGE_RX.search(s)
+        if m and not _is_evidence_text(s, m, evidence):
             out.append({"type": "BARE-AVERAGE", "token": "average/mean",
                         "detail": "averages are forbidden for conditional distributions — report the "
                                   f"median with its hit rate, N and range. sentence: {s[:180]}"})
@@ -392,7 +446,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
             failures.append({"type": "NO-MATCH", "token": str(y), "detail": "year not in evidence"})
     for t in d_tokens:
         v, u = t["value"], t["unit"]
-        if u and (v, u) in ev_pairs:
+        if u and _unit_ok(v, u, ev_pairs):
             st = "ok"
         elif u and v in ev_values:
             other = sorted({eu for (evv, eu) in ev_pairs if evv == v})
@@ -450,7 +504,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
             if not any(_ATTRIB_RX.search(sents[j]) and _sent_nums(j)[1]
                        for j in (i - 1, i + 1) if 0 <= j < len(sents)):
                 continue
-        bound = all((tk["unit"] and (tk["value"], tk["unit"]) in ev_pairs)
+        bound = all((tk["unit"] and _unit_ok(tk["value"], tk["unit"], ev_pairs))
                     or (not tk["unit"] and (tk["value"] in ev_values or tk["value"] in ev_years))
                     for tk in s_tokens)
         directional.append({"sentence": sent.strip()[:300], "numbers_bound": bound})
