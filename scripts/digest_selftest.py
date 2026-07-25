@@ -289,6 +289,39 @@ def main():
         check(f"notation resolves: {_txt!r} -> {_want}",
               _uf(_t, _m.start(), _m.end(), 60) == _want)
 
+    # --- NAME AUDIT: every digit-bearing LABEL the digest can print must be STRIPPED ---------------
+    # The notation audit above checks UNIT TOKENS. It was scoped too narrowly, and a NAME containing a
+    # digit walked straight through: "Nikkei 225" reached production unstripped and "the Nikkei 225 in
+    # Japan lower by -2.73%" parsed 225 as a percentage. This half of the audit enumerates the label
+    # set ITSELF, so adding a series whose label carries a digit fails here rather than in a live draft.
+    try:
+        import sys as _s3
+        from content_agent.studies import MLL as _MLL
+        _s3.path.insert(0, str(_MLL / "relational"))
+        import fetch_digest as _FD
+        import engine as _E
+        _labels = [s["label"] for s in _FD.SERIES.values()] + list(_E.SECTOR_LABELS.values())
+        _digit_labels = sorted({l for l in _labels if _re2.search(r"\d", l)})
+        check("the label set contains at least one digit-bearing name (audit is live)",
+              bool(_digit_labels))
+        for _lab in _digit_labels:
+            # every digit in the label must be GONE after _prep, or it will be read as a measurement
+            check(f"digit-bearing label is stripped: {_lab!r}",
+                  not _re2.search(r"\d", _pp2(_lab)))
+        # and the numbers must not survive into the token pool either
+        for _lab, _num in [("the Nikkei 225 in Japan fell", 225.0),
+                           ("EURO STOXX 50 rose", 50.0),
+                           ("the US 10-year Treasury yield", 10.0)]:
+            check(f"no token extracted from {_lab.split()[1]!r} name",
+                  not any(t["value"] == _num for t in _ex(_lab, wide_evidence=True)[0]))
+    except Exception as e:                                  # markets-llm unreachable -> skip, not fail
+        checks.append((True, f"(skipped label audit: {type(e).__name__})"))
+
+    # HORIZON PHRASING: every horizon carries its digit AND unit, so "one-session" binds.
+    _hz = "over the next 1 session (all instances): median 0.4%\nover the next 20 sessions: median 2.5%"
+    _u1 = {str(t["unit"]) for t in _ex(_hz, wide_evidence=True)[0] if t["value"] == 1.0}
+    check("the 1-session horizon carries the session unit (so 'one-session' binds)", "session" in _u1)
+
     # CLAUSE BOUNDARY, both directions. A unit must never be inherited across a newline: the evidence
     # line "...SMH ETF proxy): -3.27%" leaked pct onto the crisis count on the NEXT line, so a draft
     # writing "35 of these days" collided with a phantom "35 pct".

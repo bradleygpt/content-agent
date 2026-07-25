@@ -23,8 +23,20 @@ unit reports UNIT-MISMATCH explicitly.
 from __future__ import annotations
 import re
 
-# names/idioms containing digits that are NOT data (stripped before extraction, both sides)
+# NAMES/IDIOMS CONTAINING DIGITS THAT ARE NOT DATA (stripped before extraction, both sides).
+#
+# THE AUDIT THAT BELONGS WITH THIS LIST: adding a series to the digest universe means checking whether
+# its LABEL carries a digit. "Nikkei 225" reached production unstripped, so "the Nikkei 225 in Japan
+# lower by -2.73%" parsed 225 as a percentage and hard-failed — the fourth instance of introducing
+# something without extending the checker (after "sessions", the ^TNX scale, and "pp"). The earlier
+# notation audit checked UNIT TOKENS only, so a name with a digit walked straight through it. The
+# self-test now enumerates BOTH: every unit notation AND every digit-bearing name the digest can print.
 _STRIP_PATTERNS = [r"s\s*&\s*p\s*500", r"sp500", r"s&p500", r"nasdaq[\s-]?100", r"russell[\s-]?2000",
+                   # digest context series whose LABELS carry digits (found by enumerating the label
+                   # set, not by waiting for each to fail): Nikkei 225, EURO STOXX 50, and the US
+                   # 10-year Treasury. The last is scoped to the instrument phrase, NOT bare
+                   # "10-year", so a genuine "10-year recovery" elsewhere still measures.
+                   r"nikkei[\s-]?225", r"euro\s*stoxx\s*50", r"\b(?:us\s+)?10-?year\s+treasury\b",
                    r"\b10-?k\b", r"\b10-?q\b", r"\b2s10s\b", r"\b10y\b", r"\bcovid-19\b", r"\b60/40\b",
                    r"\b24/7\b", r"\b401\(k\)\b"]
 _WORD_NUMS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,

@@ -354,7 +354,12 @@ def main():
         fl = _fidelity_gated(draft_flagship, ev_check,
                              topic=f"{trig.get('topic','')} — study: {ev['title_hint']}",
                              evidence=ev["evidence"], news_hints=hints)
-        d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"], ev_check, trig)
+        # SAME RECORD ON THIS PATH. The deterministic repairs happen inside draft_flagship for any
+        # digest-class evidence, so a digest generated via --study got its title rewritten and its
+        # heading inserted but carried no record of it — the reviewer could not see the machine's
+        # edits on that path. Recorded here too; empty for every non-digest study.
+        prov_f = {**prov, "normalised": fl.get("normalised") or []}
+        d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov_f, fl["fidelity"], ev_check, trig)
         print(f"[daily]   flagship {d['id']} -> {d['status']}")
 
     if not args.skip_notes:
