@@ -232,6 +232,49 @@ def main():
     check("recitation rule does NOT fire on a non-digest study",
           not check_instruction_recitation(_recite, RECOVERY_EV))
 
+    # --- INVENTED-LABEL fires on ASSERTIONS, not on DENIALS ----------------------------------------
+    # A draft wrote "nor does it address censored instances or survivorship limitations" — correctly
+    # noting their absence — and was failed for asserting both.
+    # NOTE the fixture: DIGEST_EV *requires* CENSORED, and a required label can never be "invented".
+    # These cases therefore use evidence that carries NEITHER CENSORED nor SURVIVORSHIP nor SMALL-N,
+    # so an assertion of any of them is genuinely unsupported.
+    _bare_ev = ("MEASURED DAILY DIGEST EVIDENCE — session of 2026-07-24.\n"
+                "REQUIRED HONESTY LABELS (carry into the answer):\n"
+                "  - NOT-A-SIGNAL: distributions describe what followed comparable past days.\n")
+
+    def _inv(d):
+        return {f["token"] for f in run_fidelity(d, _bare_ev)["failures"]
+                if f["type"] == "INVENTED-LABEL"}
+
+    for neg in ["The evidence does not address censored instances or survivorship limitations.",
+                "There is no survivorship concern here.",
+                "This is not a small-n sample.",
+                "Nothing here is censored.",
+                "No instance remains censored."]:
+        check(f"denial is not an assertion: \"{neg[:44]}…\"", not _inv(neg))
+    for pos in ["These figures carry a survivorship limitation.",
+                "One instance remains censored.",
+                "This is a small-n sample of five."]:
+        check(f"assertion still fires: \"{pos[:44]}…\"", bool(_inv(pos)))
+
+    # --- amid / amidst -----------------------------------------------------------------------------
+    # "amidst?" parses as "amids" + optional "t" and silently stopped matching plain "amid".
+    for a in ["Sectors fell amid rising yields.", "Steady amidst global shifts.",
+              "Sector Performance Steady Amidst Global Shifts"]:
+        check(f"causal connective caught: \"{a[:40]}…\"", "CAUSAL-CLAIM" in causal(a))
+    check("no false hit on 'amiable'", not causal("An amiable session."))
+
+    # --- prose dates bind against the session date -------------------------------------------------
+    _dev = "MEASURED DAILY DIGEST EVIDENCE — session of 2026-07-24.\nNOT-A-SIGNAL\nspread 6.34 points"
+    check("\"July 24th\" no longer NO-MATCHes (naming the session is normal writing)",
+          not any(f["type"] == "NO-MATCH" for f in
+                  run_fidelity("The session of July 24th saw a spread of 6.34 points.", _dev)["failures"]))
+    check("\"24 July\" form also binds",
+          not any(f["type"] == "NO-MATCH" for f in
+                  run_fidelity("On 24 July the spread was 6.34 points.", _dev)["failures"]))
+    check("a genuinely ungrounded number still NO-MATCHes",
+          any(f["type"] == "NO-MATCH" for f in run_fidelity("It moved 24 percent.", _dev)["failures"]))
+
     # --- COMPLETENESS -----------------------------------------------------------------------------
     # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
     # validated what it said; none noticed what it never reached.

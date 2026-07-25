@@ -95,6 +95,32 @@ def main():
         RD.subprocess.run = fake_run
         fake_run.check_rc, fake_run.check_out = 0, ""
 
+        # --- 3b. INCOMPLETE MARK UNIVERSE -> no draft, and the reason is logged ---
+        # The 2026-07-25 failure: sector_cache sat a session behind digest_cache, so the digest selected
+        # a date only SPY had, found no sector prints, and wrote "no settled sector prints occurred
+        # during this session" for an ordinary Friday. build_digest now raises IncompleteMarks and
+        # evidence_for returns None; the pass must produce NOTHING and say why.
+        calls.clear(); logged.clear(); drafted.clear()
+        RD.evidence_for = lambda sid: None          # what an IncompleteMarks refusal looks like here
+        RD._run_digest(A())
+        check("incomplete mark universe -> NO draft", not drafted)
+        check("incomplete mark universe -> logged as no-evidence, not silent",
+              any(e == "digest_skipped_no_evidence" for e, _ in logged))
+        RD.evidence_for = orig[1]
+        RD.evidence_for = lambda sid: {
+            "study_id": "digest:2026-07-23", "title_hint": "t", "evidence": "E",
+            "digest": {"crossings": []},
+            "provenance": {"study_key": "2026-07-23", "lead": "crossing", "crossings": 1,
+                           "artifact": "deliverables/relational/conditional_stats.json"}}
+
+        # the refresh must pass --refresh to fetch_sectors, or the MARKS never advance (the root cause)
+        calls.clear(); logged.clear(); drafted.clear()
+        RD._run_digest(A())
+        check("sector refresh is invoked WITH --refresh (marks would never advance otherwise)",
+              any("fetch_sectors.py" in c and "--refresh" in c for c in calls))
+        check("the staleness gate requires a recent successful FETCH, not just fresh cache",
+              any("--check" in c and "--fetched-within" in c for c in calls))
+
         # --- 4. IDEMPOTENT: one digest per session ---
         calls.clear(); logged.clear(); drafted.clear()
         RD.qs.list_drafts = lambda: [{"status": "pending", "provenance": {

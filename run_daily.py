@@ -170,10 +170,15 @@ def _refresh_substrate() -> tuple[bool, str]:
     silently failed leaves the old cache in place and looks like success from the exit code alone."""
     mll = Path(CFG["markets_llm_root"])
     py = CFG.get("digest", {}).get("python", sys.executable)
-    for script, label in [("relational/fetch_digest.py", "digest substrate"),
-                          ("relational/fetch_sectors.py", "sector ETFs")]:
+    # --refresh on fetch_sectors is LOAD-BEARING: without it the script skips every already-cached
+    # ticker (correct for its original one-time role, fatal as a daily refresher) and the 12 sector
+    # MARKS never advance. That is what produced a digest reporting "no settled sector prints" for an
+    # ordinary session.
+    for script, args, label in [("relational/fetch_digest.py", [], "digest substrate"),
+                                ("relational/fetch_sectors.py", ["--refresh"], "sector ETFs")]:
         try:
-            r = subprocess.run([py, script], cwd=str(mll), capture_output=True, text=True, timeout=900)
+            r = subprocess.run([py, script, *args], cwd=str(mll), capture_output=True, text=True,
+                               timeout=900)
             tail = (r.stdout or r.stderr or "").strip().splitlines()[-1:] or [""]
             print(f"[digest] refresh {label}: exit {r.returncode} — {tail[0][:110]}")
         except Exception as e:

@@ -89,7 +89,13 @@ def evidence_for(study_id: str) -> dict | None:
         import digest_core as dc
         try:
             digest = dc.build_digest(key or None)
-        except (FileNotFoundError, ValueError):
+        except dc.IncompleteMarks as e:
+            # The mark universe did not load. NOT a quiet session — a broken one. Surfaced with its
+            # reason so the caller logs why no digest exists instead of silently producing nothing.
+            print(f"[digest] REFUSING: {e}")
+            return None
+        except (FileNotFoundError, ValueError) as e:
+            print(f"[digest] no digest for this session: {type(e).__name__}: {e}")
             return None
         try:
             from .attribution import citations_for

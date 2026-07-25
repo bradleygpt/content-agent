@@ -79,6 +79,13 @@ def _unit_ok(value: float, unit: str, ev_pairs: set) -> bool:
 
 
 _DATE_RX = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+# Month-name dates in prose ("July 24th", "24 July") name the session the evidence already carries as an
+# ISO date, so a draft that says so was hard-failing NO-MATCH on the bare day number — and naming the
+# session is natural writing. Stripped before extraction so the digit never enters the numeric pool; the
+# ISO date in the evidence remains the binding reference for the session itself.
+_MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december"
+_PROSE_DATE_RX = re.compile(rf"\b(?:{_MONTHS})\s+\d{{1,2}}(?:st|nd|rd|th)?\b"
+                            rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{_MONTHS})\b", re.I)
 # lookahead permits unit-fused forms ("14.0mo", "3.6-month"); digits/dots after are still barred so we
 # never split "0.5" out of "0.51"
 _NUM_RX = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\d.])")
@@ -92,6 +99,7 @@ def _prep(text: str) -> str:
     # 2026-07-24). markets-llm's answer_fidelity._normalize has carried this since its own encounter
     # with crash_2008; the shared core did not. Ported 2026-07-24.
     t = re.sub(r"(?<=[A-Za-z0-9])_(?=\d)", " ", t)
+    t = _PROSE_DATE_RX.sub(" ", t)              # "July 24th" -> dropped; the ISO date carries the session
     t = re.sub(r"(?<=\d)\.\.(?=[\d-])", " to ", t)         # "0.5..14.0" range syntax -> "0.5 to 14.0"
     t = re.sub(r"(?m)^(\s*)\d+[.)]\s+", r"\1", t)          # markdown ordered-list markers are not data
     for p in _STRIP_PATTERNS:
@@ -302,7 +310,10 @@ _CAUSAL_RX = re.compile(
     r"explains?|explained\s+by|respond(?:ed|ing)\s+to|in\s+response\s+to|"
     r"because\s+of|due\s+to|thanks\s+to|owing\s+to|on\s+the\s+back\s+of|attributable\s+to|"
     r"blamed\s+on|result(?:ed|ing)\s+from|prompted\s+by|weighed\s+on|dragged\s+(?:down\s+)?by|"
-    r"boosted\s+by|lifted\s+by|pressured\s+by|amid)\b|\b\w+-driven\b", re.I)
+    # amid(?:st)? — NOT "amidst?", which parses as "amids" + optional "t" and silently stops matching
+    # plain "amid". A draft titled "...Steady Amidst Global Shifts" slipped a causal connective past the
+    # rule through the -st variant; the first fix for it broke the base word instead.
+    r"boosted\s+by|lifted\s+by|pressured\s+by|amid(?:st)?)\b|\b\w+-driven\b", re.I)
 
 
 def _digest_class(evidence: str) -> bool:
@@ -466,6 +477,29 @@ LABEL_CLAIMS = {
     "NOT-A-SIGNAL": r"\bnot[\s-]a[\s-]signal\b",
 }
 
+# INVENTED-LABEL fires on ASSERTIONS, not on mentions that DENY the label applies. A draft wrote "nor
+# does it address censored instances or survivorship limitations" — correctly noting they are absent —
+# and was failed for asserting both. Same class as the recitation and average fixes: the rule read a
+# word rather than a claim. Negation is detected in the clause LEADING UP TO the mention, which is where
+# English puts it ("does not address X", "no X here", "without any X", "cannot speak to X").
+_NEGATION_RX = re.compile(
+    r"\b(?:no|not|never|nor|neither|none|nothing|nowhere|without|absent|lacks?|lacking|excludes?|"
+    r"does\s+not|do\s+not|doesn'?t|don'?t|cannot|can'?t|is\s+not|are\s+not|isn'?t|aren'?t|"
+    r"free\s+of|unaffected\s+by|inapplicable|not\s+applicable|n/?a)\b", re.I)
+
+
+def _label_mention_is_negated(draft: str, match: re.Match) -> bool:
+    """Is this label mention DENIED rather than asserted? Looks back to the start of the clause."""
+    start = match.start()
+    lo = max(0, start - 140)
+    window = draft[lo:start]
+    for sep in (". ", "! ", "? ", "\n", "; "):
+        cut = window.rfind(sep)
+        if cut >= 0:
+            window = window[cut + len(sep):]
+    return bool(_NEGATION_RX.search(window))
+
+
 _ATTRIB_RX = re.compile(r"measured|relational engine|the engine|since 2004|the data|this study|"
                         r"across (?:the )?\d+|distribution", re.I)
 _DIRECTIONAL_RX = re.compile(r"\b(?:rise[sn]?|rising|rose|climb\w*|rall(?:y|ies|ied)|gain\w*|"
@@ -518,7 +552,10 @@ def run_fidelity(draft: str, evidence: str) -> dict:
             failures.append({"type": "MISSING-LABEL", "token": name,
                              "detail": f"evidence carries {name}; draft never states it"})
     for name, claim_rx in LABEL_CLAIMS.items():
-        if labels[name]["required"] or not re.search(claim_rx, draft, re.I):
+        if labels[name]["required"]:
+            continue
+        m = re.search(claim_rx, draft, re.I)
+        if not m or _label_mention_is_negated(draft, m):
             continue
         labels[name]["invented"] = True
         failures.append({"type": "INVENTED-LABEL", "token": name,
