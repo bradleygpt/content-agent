@@ -178,10 +178,15 @@ def _refresh_substrate() -> tuple[bool, str]:
             print(f"[digest] refresh {label}: exit {r.returncode} — {tail[0][:110]}")
         except Exception as e:
             return False, f"{label} refresh raised {type(e).__name__}: {e}"
-    # THE GATE: a non-zero --check means at least one series is stale or missing.
+    # THE GATE: non-zero means at least one series is stale, missing, or WAS NOT SUCCESSFULLY FETCHED
+    # in this run. The fetch-recency requirement is the part cache age cannot supply: a market holiday
+    # legitimately leaves every US series 2 business days back (measured max gap = 2 over 2 years), so
+    # no cache-age tolerance can separate "the market was shut" from "the refresh silently failed". A
+    # successful fetch can: on a holiday it succeeds and returns a pre-holiday bar; on a failure it does
+    # not happen at all. 60 minutes is generous for a refresh that takes seconds.
     try:
-        r = subprocess.run([py, "relational/fetch_digest.py", "--check"], cwd=str(mll),
-                           capture_output=True, text=True, timeout=300)
+        r = subprocess.run([py, "relational/fetch_digest.py", "--check", "--fetched-within", "60"],
+                           cwd=str(mll), capture_output=True, text=True, timeout=300)
     except Exception as e:
         return False, f"staleness check raised {type(e).__name__}: {e}"
     if r.returncode != 0:

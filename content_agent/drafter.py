@@ -89,7 +89,9 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 
 === FILL IN THIS SKELETON. Emit these four headings verbatim, in this order, nothing else. ===
 
-# <title: this session and what moved, built from the figures below>
+# <title: this session and what moved, from THIS session's figures. NO causal connective —
+#  no amid / as / after / on / driven by / despite / on the back of. Join with a semicolon.
+#  Write your own; copy no wording from these instructions.>
 
 ## The mark          (~90 words)
 <which anchors crossed and by how much, or — if nothing crossed — the sector spread>
@@ -143,6 +145,12 @@ CAUSATION — the single most damaging thing this format can print
 
 LABELS
 - Carry EVERY label the evidence's "REQUIRED HONESTY LABELS" list names, by name.
+- NEVER REPRODUCE THE EVIDENCE BLOCK'S INSTRUCTION TEXT. The block tells you what to do in imperative
+  language ("do not write that one caused...", "state this", "never impute it", "lead with the range").
+  That wording is a CONSTRAINT ON YOUR WRITING, not content to publish. A reader who opens the piece and
+  finds raw instruction text pasted into a paragraph — or a bracketed block of label text — is worse
+  served than by the error the instruction was preventing. Name the label, then state the caveat IN YOUR
+  OWN WORDS, in a normal sentence. Never paste a bracketed [LABEL: ...] block into the prose.
 - Use ONLY those names. Do not copy label names from these instructions or from pieces you have seen.
   A caveat the evidence never made is a false claim exactly like a false number, and fails just as
   hard. If you believe a limitation exists that the evidence has not named, describe it in plain words

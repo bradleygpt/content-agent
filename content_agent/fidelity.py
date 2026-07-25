@@ -362,11 +362,58 @@ def check_causal_claims(draft: str, evidence: str) -> list[dict]:
     for sent in re.split(r"(?<=[.!?])\s+", draft):
         s = sent.strip()
         m = _CAUSAL_RX.search(s)
-        if m:
+        # The evidence's own NO-CAUSATION instruction contains the very words this rule forbids ("do not
+        # write that one caused, drove, triggered..."), so a draft that recites it fires CAUSAL-CLAIM for
+        # exactly the wrong reason. Fifth occurrence of this module penalising recited mandatory text —
+        # _is_evidence_text existed for it and was wired into the average check only. Reciting the block
+        # is still a defect: INSTRUCTION-RECITATION catches it, with the right message.
+        if m and not _is_evidence_text(s, m, evidence):
             out.append({"type": "CAUSAL-CLAIM", "token": m.group(0),
                         "detail": f"causal language in a digest — the evidence measures co-movement, "
                                   f"never cause. Say what moved and stop. sentence: {s[:180]}"})
     return out
+
+
+# --- INSTRUCTION RECITATION (Daily Measured Digest) -------------------------------------------------
+# A draft pasted "[NOT-A-SIGNAL: These series moved on the same session; do not write that one caused,
+# drove, triggered, or explains another — the evidence contains no such measurement.]" into its prose.
+# That is a defect on its own terms, independent of any other check: a reader who opens a published
+# digest and finds raw instruction text is worse served than by the causal claim the instruction was
+# forbidding. Label text is a CONSTRAINT ON THE WRITING, never content to reproduce — the piece states
+# its caveats in its own words or not at all.
+#
+# Detection is verbatim-span based rather than keyword based: a run of >= MIN_RECITED_WORDS consecutive
+# words lifted from an evidence line that is an INSTRUCTION (imperative/prohibition), not a data line.
+# Numbers and short label names are explicitly NOT recitation — quoting figures is the entire job, and
+# naming a label is required.
+MIN_RECITED_WORDS = 9
+_INSTRUCTION_HINT = re.compile(r"\bdo not\b|\bnever\b|\bmandatory\b|\bstate this\b|\bsay so\b|"
+                               r"\bforbidden\b|\bdo NOT\b|\blead with\b|\bomit\b", re.I)
+
+
+def check_instruction_recitation(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. Flags prose that reproduces the evidence's INSTRUCTION text verbatim."""
+    if not _digest_class(evidence):
+        return []
+    instr_lines = [ln.strip() for ln in evidence.splitlines() if _INSTRUCTION_HINT.search(ln)]
+    if not instr_lines:
+        return []
+
+    def words(s):
+        return re.sub(r"[^0-9a-z ]+", " ", s.lower()).split()
+
+    d_words = words(draft)
+    d_join = " ".join(d_words)
+    for ln in instr_lines:
+        lw = words(ln)
+        for i in range(0, max(0, len(lw) - MIN_RECITED_WORDS) + 1):
+            span = " ".join(lw[i:i + MIN_RECITED_WORDS])
+            if span and span in d_join:
+                return [{"type": "INSTRUCTION-RECITATION", "token": span[:60],
+                         "detail": "the draft reproduces the evidence block's INSTRUCTION text verbatim "
+                                   "— label text is a constraint on the writing, not content to publish. "
+                                   "State the caveat in your own words. recited: \"" + span[:110] + "\""}]
+    return []
 
 
 def check_median_discipline(draft: str, evidence: str) -> list[dict]:
@@ -481,6 +528,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
     failures.extend(check_median_discipline(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
     failures.extend(check_completeness(draft, evidence))
+    failures.extend(check_instruction_recitation(draft, evidence))
 
     directional = []
     sents = re.split(r"(?<=[.!?])\s+", draft)

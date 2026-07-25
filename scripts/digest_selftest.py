@@ -206,6 +206,32 @@ def main():
     check("a draft citing 2022 no longer NO-MATCHes",
           not any(f["type"] == "NO-MATCH" and f["token"] == "2022" for f in _r["failures"]))
 
+    # --- CAUSAL rule must not fire on RECITED evidence, and recitation is caught separately ---------
+    # The evidence's NO-CAUSATION instruction contains the very words the causal rule forbids, so a
+    # draft reciting it fired CAUSAL-CLAIM for the wrong reason (fifth occurrence of this module
+    # penalising mandatory-text recitation). Reciting is still a defect — INSTRUCTION-RECITATION owns it.
+    from content_agent.fidelity import check_instruction_recitation
+    _instr_ev = (DIGEST_EV + "\nNO CAUSATION. These series moved on the same session. Do not write "
+                             "that one caused, drove, triggered, or explains another — the evidence "
+                             "contains no such measurement.\n")
+    _recite = ("These series moved on the same session; do not write that one caused, drove, "
+               "triggered, or explains another.")
+    check("reciting the NO-CAUSATION instruction does NOT fire CAUSAL-CLAIM",
+          "CAUSAL-CLAIM" not in {f["type"] for f in check_causal_claims(_recite, _instr_ev)})
+    check("...but it DOES fire INSTRUCTION-RECITATION",
+          "INSTRUCTION-RECITATION" in {f["type"] for f in
+                                       check_instruction_recitation(_recite, _instr_ev)})
+    check("a real causal claim still fires CAUSAL-CLAIM",
+          "CAUSAL-CLAIM" in {f["type"] for f in
+                             check_causal_claims("Staples fell, caused by the yield move.", _instr_ev)})
+    # quoting FIGURES is the job, not recitation; and naming a label is required, not recitation
+    for ok in ["Consumer discretionary fell -4.61% and crude rose 6.17% the same session.",
+               "The record is NOT-A-SIGNAL: it describes what followed comparable days, nothing more.",
+               "Unrecovered instances stay censored rather than imputed."]:
+        check(f"not recitation: \"{ok[:42]}…\"", not check_instruction_recitation(ok, _instr_ev))
+    check("recitation rule does NOT fire on a non-digest study",
+          not check_instruction_recitation(_recite, RECOVERY_EV))
+
     # --- COMPLETENESS -----------------------------------------------------------------------------
     # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
     # validated what it said; none noticed what it never reached.
