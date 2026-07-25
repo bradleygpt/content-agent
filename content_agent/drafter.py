@@ -199,10 +199,17 @@ def _strip_recited_sentences(body: str, evidence: str) -> tuple[str, list[str]]:
     that is imperative. Quoting FIGURES is the job and is never an instruction line, so a numbers
     sentence can never be removed; and removing a whole sentence leaves the surrounding prose intact
     where removing a fragment would not."""
+    # AN EVIDENCE LINE CARRYING DIGITS IS DATA, NOT INSTRUCTION — even when it also contains a
+    # directive. The spine line reads "over the next 20 sessions ... lead with it: median 2.52%,
+    # positive in 158 of 262 instances", so matching on "lead with" alone classified the piece's
+    # PRIMARY FIGURES as instruction text and this function deleted the draft's 20-session paragraph.
+    # The draft then PASSED fidelity, because everything that survived still bound — a content-deleted
+    # draft sitting in the queue looking publishable, which is worse than any failure. Pure directives
+    # (INDEX-MEASURED, SECTOR-PROXY, NO CAUSATION) carry no digits; data lines always do.
     instr = [ln for ln in evidence.splitlines()
              if re.search(r"\bdo not\b|\bnever\b|\bsay so\b|\bstate this\b|\bin your own words\b|"
-                          r"\bapplies here\b|\bforbidden\b|\blead with\b|\bomit\b|\btell the reader\b",
-                          ln, re.I)]
+                          r"\bapplies here\b|\bforbidden\b|\bomit\b|\btell the reader\b", ln, re.I)
+             and not re.search(r"\d", ln)]
     if not instr:
         return body, []
 
@@ -221,7 +228,10 @@ def _strip_recited_sentences(body: str, evidence: str) -> tuple[str, list[str]]:
                 dropped.append(s.strip()[:90])
             else:
                 out.append(s)
-        kept.append(" ".join(x for x in out if x.strip()) if len(sents) > 1 else para)
+        # ALWAYS rebuild from the kept sentences. The earlier "if len(sents) > 1 else para" fallback
+        # silently discarded the filtering whenever a paragraph held a single sentence — which is
+        # exactly the shape a pasted label block takes.
+        kept.append(" ".join(x for x in out if x.strip()))
     changes = ([f"removed {len(dropped)} sentence(s) reciting the evidence's instruction text "
                 f"(first: {dropped[0]!r})"] if dropped else [])
     return ("\n".join(kept), changes) if dropped else (body, [])
