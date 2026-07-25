@@ -275,6 +275,49 @@ def main():
     check("a genuinely ungrounded number still NO-MATCHes",
           any(f["type"] == "NO-MATCH" for f in run_fidelity("It moved 24 percent.", _dev)["failures"]))
 
+    # --- NOTATION AUDIT: every unit form digest_core emits must resolve -----------------------------
+    # This class has cost three rounds ("sessions", the ^TNX scale, then "pp"), each discovered live.
+    # The table is the audit: adding a notation to the evidence without adding it here should fail.
+    import re as _re2
+    from content_agent.fidelity import _unit_for as _uf, _prep as _pp2
+    for _txt, _want in [("-4.61%", "pct"), ("5.46pp", "pct"), ("+0.05pp", "pct"),
+                        ("6.34 percentage points", "pct"), ("542 sessions", "session"),
+                        ("46 instances", "count"), ("N=46", "count"), ("14.0mo", "month"),
+                        ("3 weeks", "week"), ("0.543", None)]:
+        _t = _pp2(_txt)
+        _m = _re2.search(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\d.])", _t)
+        check(f"notation resolves: {_txt!r} -> {_want}",
+              _uf(_t, _m.start(), _m.end(), 60) == _want)
+
+    # CLAUSE BOUNDARY, both directions. A unit must never be inherited across a newline: the evidence
+    # line "...SMH ETF proxy): -3.27%" leaked pct onto the crisis count on the NEXT line, so a draft
+    # writing "35 of these days" collided with a phantom "35 pct".
+    _two_line = "  semiconductors (SMH ETF proxy): -3.27%\n  CRISIS CLUSTERING: 35 of these days fell"
+    _units35 = {str(t["unit"]) for t in _ex(_two_line, wide_evidence=True)[0] if t["value"] == 35.0}
+    check("no unit inherited across a newline (35 is not pct)", "pct" not in _units35)
+    check("...and the same line's own unit still resolves",
+          any(t["value"] == 3.27 and t["unit"] == "pct"
+              for t in _ex(_two_line, wide_evidence=True)[0]))
+
+    # --- DETERMINISTIC NORMALISATION (title + first heading) --------------------------------------
+    # Three prompt attempts each; both are now mechanical, and both are recorded on the draft.
+    from content_agent.drafter import normalize_digest_markdown as _norm
+    _bad = ("# Semiconductors Decline Amid Mixed Global Session\n\nSemis fell -3.27%.\n\n"
+            "## The context\nVIX rose.\n\n## Next session\nx\n\n## Full recovery\ny")
+    _out, _ch = _norm(_bad)
+    check("title causal connective replaced with a semicolon", "Amid" not in _out.splitlines()[0])
+    check("title rewrite preserves both halves",
+          "Semiconductors Decline" in _out and "Mixed Global Session" in _out)
+    check('omitted "## The mark" heading is inserted', "## The mark" in _out)
+    check("the mark prose ends up UNDER the inserted heading",
+          _out.index("## The mark") < _out.index("Semis fell -3.27%"))
+    check("both repairs are reported, not silent", len(_ch) == 2)
+    _clean = "# Semiconductors Fall; Spread 5.46 Points\n\n## The mark\nx\n\n## The context\ny"
+    _o2, _c2 = _norm(_clean)
+    check("an already-clean draft is left byte-identical", _o2 == _clean and not _c2)
+    _nohead = "# Title\n\n## The mark\nx\n\n## The context\ny"
+    check("heading NOT inserted when it already exists", _norm(_nohead)[0].count("## The mark") == 1)
+
     # --- COMPLETENESS -----------------------------------------------------------------------------
     # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
     # validated what it said; none noticed what it never reached.

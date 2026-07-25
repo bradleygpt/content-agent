@@ -241,6 +241,8 @@ def _run_digest(args) -> None:
     trig = {"trigger": "digest", "study_id": ev["study_id"], "topic": ev["title_hint"]}
     fl = _fidelity_gated(draft_flagship, ev["evidence"], topic=ev["title_hint"],
                          evidence=ev["evidence"], news_hints=None)
+    # deterministic repairs are RECORDED, never silent: the reviewer sees every machine edit
+    prov = {**prov, "normalised": fl.get("normalised") or []}
     d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"],
                      ev["evidence"], trig)
     print(f"[digest]   {d['id']} -> {d['status']} ({len(fl['body_md'].split())} words)")

@@ -8,6 +8,7 @@ incumbent stat-accounts omit ARE the differentiation. Deferral language is the b
 """
 from __future__ import annotations
 import json
+import re
 
 import requests
 
@@ -100,8 +101,8 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 <what else moved the same session, as a list of figures. No links between them.>
 
 ## Next session      (~200 words)
-<the [THE SPINE] horizon in full, per anchor; the [supporting detail] horizons in ONE shared
-sentence; the crisis split stated>
+<the horizon the evidence marks as THE PIECE'S ANSWER, in full, per anchor; the two the
+evidence marks as supporting-only in ONE shared sentence; the crisis split stated>
 
 ## Full recovery     (~180 words)
 <time to regain the prior high: median, range, N, the crisis-vs-ordinary contrast, the censored
@@ -176,6 +177,58 @@ evidence block actually carries — do not copy label names from this instructio
 the evidence never stated is a false claim. Output ONLY the note text."""
 
 
+# ======================================================================================================
+# DETERMINISTIC POST-PROCESSING — two defects the prompt could not fix in three attempts each.
+#
+# Both are MECHANICAL and both are LOGGED: the returned change list rides into the draft record so a
+# reviewer sees exactly what was rewritten and can disagree. Neither touches a number, a label or a
+# claim — one rewrites a connective in the title, the other inserts a heading the model omitted. Chosen
+# over regenerate-on-precheck because a regeneration costs a GPU cycle to fix a comma.
+# ======================================================================================================
+_TITLE_CAUSAL_RX = re.compile(
+    r"\s+(?:amid(?:st)?|as|after|despite|following|on\s+the\s+back\s+of|driven\s+by|due\s+to|"
+    r"amidst|owing\s+to|thanks\s+to|because\s+of)\s+", re.I)
+_DIGEST_HEADINGS = ["The mark", "The context", "Next session", "Full recovery"]
+
+
+def normalize_digest_markdown(body: str) -> tuple[str, list[str]]:
+    """-> (body, changes). Deterministic repairs for the digest format only.
+
+    1. TITLE CONNECTIVE -> SEMICOLON. Three prompt attempts failed to stop "X Declines Amid Y"; a
+       headline linking two moves asserts a cause the evidence never measured. The connective becomes
+       "; ", which is the house form the task asks for anyway. Numbers and names are untouched.
+    2. MISSING FIRST HEADING. The model reliably writes the mark content directly under the title and
+       heads only the later sections (0/4, then 2/4, then 3/4 across three rounds). When "## The
+       context" exists but "## The mark" does not, and there IS prose between the title and it, that
+       prose IS the mark section — so the heading is inserted rather than requested again.
+    """
+    changes, lines = [], body.splitlines()
+    if not lines:
+        return body, changes
+
+    for i, ln in enumerate(lines[:3]):
+        if ln.lstrip().startswith("#") and _TITLE_CAUSAL_RX.search(ln):
+            new = _TITLE_CAUSAL_RX.sub("; ", ln, count=1).rstrip("; ")
+            changes.append(f"title: causal connective replaced with a semicolon "
+                           f"({ln.strip()[:70]!r} -> {new.strip()[:70]!r})")
+            lines[i] = new
+            break
+
+    text = "\n".join(lines)
+    has = {h: re.search(rf"(?mi)^\s{{0,3}}#{{1,4}}\s*{re.escape(h)}\b", text) for h in _DIGEST_HEADINGS}
+    if not has["The mark"] and has["The context"]:
+        h1 = next((i for i, ln in enumerate(lines) if ln.lstrip().startswith("# ")), None)
+        ctx = next(i for i, ln in enumerate(lines)
+                   if re.match(r"(?i)^\s{0,3}#{1,4}\s*The context\b", ln))
+        first = next((i for i in range((h1 + 1) if h1 is not None else 0, ctx) if lines[i].strip()), None)
+        if first is not None:
+            lines.insert(first, "## The mark")
+            lines.insert(first, "")
+            changes.append('inserted the omitted "## The mark" heading above the mark prose')
+            text = "\n".join(lines)
+    return text, changes
+
+
 def _chat(messages: list[dict], num_predict: int) -> str:
     """num_ctx MUST be set explicitly. ollama's default is 4096, which counts prompt AND completion —
     so num_predict is a ceiling that the real budget silently undercuts. Measured 2026-07-24: a
@@ -221,8 +274,13 @@ def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = No
     body = _chat([{"role": "system", "content": SYSTEM_VOICE},
                   {"role": "user", "content": "\n".join(user)}], num_predict=2400)
     body = body.strip().removeprefix("```markdown").removeprefix("```").removesuffix("```").strip()
+    normalised = []
+    if "MEASURED DAILY DIGEST EVIDENCE" in evidence:
+        body, normalised = normalize_digest_markdown(body)
+        for c in normalised:
+            print(f"[drafter] normalised -> {c}")
     title = body.splitlines()[0].lstrip("# ").strip() if body.startswith("#") else "Untitled"
-    return {"kind": "flagship", "title": title, "body_md": body}
+    return {"kind": "flagship", "title": title, "body_md": body, "normalised": normalised}
 
 
 def draft_note(evidence: str, stat_focus: str, fidelity_failures: list[str] | None = None) -> dict:

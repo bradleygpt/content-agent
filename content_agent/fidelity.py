@@ -31,7 +31,7 @@ _WORD_NUMS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "s
               "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
               "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20}
 _UNIT_RX = [
-    ("pct", r"%|percent(?:age)?(?:\s+points?)?|per\s+cent"),
+    ("pct", r"%|percent(?:age)?(?:\s+points?)?|per\s+cent|\bpps?\b|\bbps\b"),
     ("month", r"months?\b|mo\b"),
     ("week", r"weeks?\b|wks?\b"),
     ("day", r"days?\b"),
@@ -45,7 +45,7 @@ _UNIT_RX = [
     ("session", r"sessions?\b"),
     ("count", r"events?\b|meetings?\b|midterms?\b|elections?\b|episodes?\b|cases?\b|instances?\b|"
               r"drawdowns?\b|anecdotes?\b|stocks?\b|names?\b|(?:data\s+)?points?\b|occurrences?\b|"
-              r"cycles?\b|samples?\b"),
+              r"cycles?\b|samples?\b|\bN\s*=|\bn\s*="),
     ("corr", r"corr(?:elation)?s?\b"),
 ]
 # UNIT EQUIVALENCE — deliberately ONE pair, and only in the direction that cannot hide an error.
@@ -122,7 +122,15 @@ def _unit_for(t: str, start: int, end: int, after: int) -> str | None:
             best, best_d = unit, m.start()
     if best:
         return best
+    # THE BEFORE-WINDOW NEEDS THE SAME CLAUSE CUT AS THE AFTER-WINDOW. It had none, so it reached back
+    # across a NEWLINE: 25 chars before "35 of these fell in 2008" spans "  CRISIS CLUSTERING: " and
+    # still catches the tail of the previous line — "...(SMH ETF proxy): -3.27%" — indexing a crisis
+    # COUNT as a percentage. A draft writing "35 of these days" then collided with a phantom "35 pct".
+    # A unit is never inherited across a clause boundary in either direction.
     wb = t[max(0, start - 25):start]
+    bcut = max(wb.rfind("\n"), wb.rfind(";"))
+    if bcut >= 0:
+        wb = wb[bcut + 1:]
     for unit, rx in _UNIT_RX:
         for m in re.finditer(rx, wb, re.I):
             d = len(wb) - m.end()
@@ -152,6 +160,14 @@ def _extract(text: str, wide_evidence: bool):
             # : 19 (deepest -35.2%"), index the value under BOTH — widens what a draft may bind to while
             # the draft side stays strictly adjacent (the months-vs-weeks class is still caught).
             wb = t[max(0, m.start() - 45):m.start()]
+            # CLAUSE BOUNDARY, same rule the forward window already applies. Without it this look-back
+            # crossed a NEWLINE and indexed a crisis count under the previous line's "%": the evidence
+            # line "semiconductors (SMH ETF proxy): -3.27%" leaked pct onto the "35 of these fell in
+            # 2008" on the line below, so a draft writing "35 of these days" collided with a phantom
+            # "35 pct". A unit must never be inherited across a clause or a line.
+            cut = max(wb.rfind("\n"), wb.rfind(";"))
+            if cut >= 0:
+                wb = wb[cut + 1:]
             for u2, rx in _UNIT_RX:
                 if u2 != unit and re.search(rx, wb, re.I):
                     tokens.append({"value": v, "unit": u2, "raw": raw, "ctx": ctx.strip()})
