@@ -351,6 +351,63 @@ def main():
     _nohead = "# Title\n\n## The mark\nx\n\n## The context\ny"
     check("heading NOT inserted when it already exists", _norm(_nohead)[0].count("## The mark") == 1)
 
+    # --- CENTRAL CLAUSE BOUNDARY: all three historical variants + the decimal case -----------------
+    # One boundary definition now serves every window on both sides. Each of these failed live, in a
+    # different window, in a different round.
+    from content_agent.fidelity import _clause_after as _ca, _clause_before as _cb
+    check("variant 1 — after-window stops at the clause (';')",
+          "%" not in _ca("median 4.6mo, range 2.2 to 41.3; deepest -55.2%", 5, 60))
+    check("variant 2 — look-back stops at a NEWLINE",
+          "%" not in _cb("(SMH ETF proxy): -3.27%\n  CRISIS CLUSTERING: 35 of", 45, 45))
+    check("variant 3 — look-back stops at a SENTENCE END",
+          "%" not in _cb("a decline at or beyond -3%. Of these, 35 occurred", 45, 25))
+    check("DECIMALS ARE NOT BOUNDARIES — '3.27%' keeps its unit",
+          _uf(_pp2("-3.27%"), 1, 5, 30) == "pct")
+    check("...and a decimal mid-sentence does not truncate the look-back",
+          "range" in _cb("with a range from 3.27 to 9.5 and", 33, 30))
+
+    # --- MEDIAN-WITHOUT-N: verified BOTH ways before shipping -------------------------------------
+    # Flagged as a drafter failure, then verified and found to be a FALSE POSITIVE: _N_RX demanded the
+    # noun immediately after the digit, so "Across all 261 recovered instances" carried N and failed.
+    for _s, _want, _why in [
+            ("Across all 261 recovered instances, the median recovery time was 232 sessions, with a "
+             "range from just 2 sessions to as long as 2544 sessions.", True, "N + range, modifiers"),
+            ("The median was 232 sessions, ranging 2 to 2544, over 205 recovered instances.",
+             True, "N + range"),
+            ("Excluding crises, the median recovery time shortened to 213 sessions, still spanning a "
+             "range from 2 to 2544 sessions.", False, "range but genuinely NO N"),
+            ("The median recovery time was 232 sessions.", False, "neither")]:
+        _passed = "MEDIAN-WITHOUT-N" not in {x["type"] for x in check_median_discipline(_s, DIGEST_EV)}
+        check(f"duration median — {_why}", _passed is _want)
+
+    # --- NOT-A-SIGNAL: the LABEL was right, the DETECTION was too narrow ---------------------------
+    from content_agent.fidelity import LABELS as _LB
+    _nas = _LB["NOT-A-SIGNAL"][1]
+    for _s in ["The measurement cannot be interpreted as a forecast of future market behavior.",
+               "It does not predict tomorrow's movements.",
+               "These are historical outcomes, not forecasts.",
+               "It describes what followed comparable past days."]:
+        check(f"natural deferral satisfies NOT-A-SIGNAL: \"{_s[:40]}…\"",
+              bool(_re2.search(_nas, _s, _re2.I)))
+    for _s in ["Semiconductors fell -3.27% and crude rose 6.17%.",
+               "The median was 232 sessions over 205 instances."]:
+        check(f"unrelated prose does NOT satisfy it: \"{_s[:40]}…\"",
+              not _re2.search(_nas, _s, _re2.I))
+
+    # --- RECITED-SENTENCE STRIP (mechanical, 4th-occurrence treatment) -----------------------------
+    from content_agent.drafter import _strip_recited_sentences as _srs
+    _iev = ("MEASURED DAILY DIGEST EVIDENCE\n  INDEX-MEASURED applies here — tell the reader IN YOUR "
+            "OWN WORDS that an index move is shallower than a typical single stock's.\n")
+    _body = ("Semis fell -3.27%. INDEX-MEASURED applies here — tell the reader IN YOUR OWN WORDS that "
+             "an index move is shallower than a typical single stock's. The spread was 5.46pp.")
+    _o, _c = _srs(_body, _iev)
+    check("a recited INSTRUCTION sentence is removed", "tell the reader" not in _o)
+    check("...and the surrounding prose survives intact",
+          "Semis fell -3.27%." in _o and "The spread was 5.46pp." in _o)
+    check("the removal is reported, not silent", len(_c) == 1)
+    _fig = "Semis fell -3.27%. The median was 2.52% over 262 instances."
+    check("a sentence quoting only FIGURES is never removed", _srs(_fig, _iev)[0] == _fig)
+
     # --- COMPLETENESS -----------------------------------------------------------------------------
     # The first digest to PASS fidelity was truncated mid-sentence with Section 4 missing. Every check
     # validated what it said; none noticed what it never reached.

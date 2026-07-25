@@ -119,14 +119,45 @@ def _prep(text: str) -> str:
     return t
 
 
+# ======================================================================================================
+# THE CLAUSE BOUNDARY — ONE definition, used by EVERY window on BOTH sides.
+#
+# The same defect surfaced three times in three rounds, each in a different window, because each window
+# carried its own ad-hoc cut:
+#   1. the after-window captured a "%" from the FOLLOWING clause;
+#   2. the evidence-side look-back reached across a NEWLINE and read the previous line's "%";
+#   3. the draft-side look-back reached across a SENTENCE ("...beyond -3%. Of these, 35 occurred...").
+# Patching windows one at a time guarantees a fourth. A unit is never inherited across a clause
+# terminator, in either direction, in any window — and that is now stated once.
+#
+# DECIMALS ARE NOT BOUNDARIES: a period counts only when followed by whitespace or end-of-string, so
+# "3.27%" keeps its unit while "-3%. Of these" does not leak across the full stop.
+# ======================================================================================================
+_CLAUSE_END_RX = re.compile(r"[;\n]|[.!?](?=\s|$)")
+
+
+def _clause_after(t: str, pos: int, width: int) -> str:
+    """Text from pos forward, stopping at the FIRST clause terminator."""
+    w = t[pos:pos + width]
+    m = _CLAUSE_END_RX.search(w)
+    return w[:m.start()] if m else w
+
+
+def _clause_before(t: str, pos: int, width: int) -> str:
+    """Text before pos, starting AFTER the LAST clause terminator."""
+    w = t[max(0, pos - width):pos]
+    last = None
+    for m in _CLAUSE_END_RX.finditer(w):
+        last = m
+    return w[last.end():] if last else w
+
+
 def _unit_for(t: str, start: int, end: int, after: int) -> str | None:
     """AFTER-FIRST, clause-bounded unit resolution: units overwhelmingly trail their numbers ("-24.5%",
     "14.0mo", "range 0.5 to 14.0 months"); the before-window is a fallback for prefix forms ("corr 0.17").
     The after-window is cut at the clause boundary (';' or newline) so a '%' from the previous clause never
     captures the next clause's number."""
-    clause = t[end:end + after]
-    cut = min([i for i in (clause.find(";"), clause.find("\n")) if i >= 0] or [len(clause)])
-    wa = clause[:cut]
+    wa = _clause_after(t, end, after)
     best, best_d = None, 10 ** 9
     for unit, rx in _UNIT_RX:
         m = re.search(rx, wa, re.I)
@@ -139,10 +170,7 @@ def _unit_for(t: str, start: int, end: int, after: int) -> str | None:
     # still catches the tail of the previous line — "...(SMH ETF proxy): -3.27%" — indexing a crisis
     # COUNT as a percentage. A draft writing "35 of these days" then collided with a phantom "35 pct".
     # A unit is never inherited across a clause boundary in either direction.
-    wb = t[max(0, start - 25):start]
-    bcut = max(wb.rfind("\n"), wb.rfind(";"))
-    if bcut >= 0:
-        wb = wb[bcut + 1:]
+    wb = _clause_before(t, start, 25)
     for unit, rx in _UNIT_RX:
         for m in re.finditer(rx, wb, re.I):
             d = len(wb) - m.end()
@@ -171,15 +199,7 @@ def _extract(text: str, wide_evidence: bool):
             # evidence-side generosity: when the PRECEDING clause names a different unit ("19 drawdowns ...
             # : 19 (deepest -35.2%"), index the value under BOTH — widens what a draft may bind to while
             # the draft side stays strictly adjacent (the months-vs-weeks class is still caught).
-            wb = t[max(0, m.start() - 45):m.start()]
-            # CLAUSE BOUNDARY, same rule the forward window already applies. Without it this look-back
-            # crossed a NEWLINE and indexed a crisis count under the previous line's "%": the evidence
-            # line "semiconductors (SMH ETF proxy): -3.27%" leaked pct onto the "35 of these fell in
-            # 2008" on the line below, so a draft writing "35 of these days" collided with a phantom
-            # "35 pct". A unit must never be inherited across a clause or a line.
-            cut = max(wb.rfind("\n"), wb.rfind(";"))
-            if cut >= 0:
-                wb = wb[cut + 1:]
+            wb = _clause_before(t, m.start(), 45)
             for u2, rx in _UNIT_RX:
                 if u2 != unit and re.search(rx, wb, re.I):
                     tokens.append({"value": v, "unit": u2, "raw": raw, "ctx": ctx.strip()})
@@ -221,10 +241,19 @@ LABELS = {
                         r"(?:doesn'?t|does\s+not|cannot|can'?t)\s+(?:predict|forecast|tell)|"
                         r"inference|history\b[^.]{0,40}not\s+a\s+guarantee|forward[\s-]looking"),
     "SECTOR-PROXY": (r"SECTOR-PROXY", r"proxy|\betf\b"),
+    # DETECTION WAS THE PROBLEM, NOT THE LABEL. The label is exactly right on a crossing-led digest —
+    # sections 3/4 ARE conditional distributions. But the presence regex demanded "not a forecast"
+    # contiguously, so a draft closing with "cannot be interpreted as a forecast of future market
+    # behavior" and "does not predict tomorrow's movements" was failed for omitting a caveat it had
+    # plainly made. A FALSE POSITIVE. The label stays required; natural deferral phrasing now satisfies
+    # it, including plurals, "cannot be interpreted as", and "does not predict".
     "NOT-A-SIGNAL": (r"NOT-A-SIGNAL",
-                     r"not[\s-]a[\s-]signal|not\s+a\s+(?:forecast|prediction|recommendation|"
-                     r"probability)|what\s+followed|describes?\s+the\s+past|no(?:t)?\s+"
-                     r"(?:a\s+)?guarantee"),
+                     r"not[\s-]a[\s-]signal"
+                     r"|\bnot\b[^.]{0,40}\b(?:forecasts?|predictions?|recommendations?|probabilit)"
+                     r"|\b(?:cannot|can'?t|does\s+not|do\s+not|doesn'?t|won'?t|will\s+not)\b"
+                     r"[^.]{0,60}\b(?:forecast|predict|guarantee|recommend|tell\s+you|imply)"
+                     r"|what\s+followed|describes?\s+the\s+past|no(?:t)?\s+(?:a\s+)?guarantee"
+                     r"|historical\s+outcomes?,?\s+not"),
 }
 
 # --- MEDIAN-WITHOUT-N (Daily Measured Digest, D1-4) -------------------------------------------------
@@ -286,8 +315,22 @@ def _median_is_reported(sent: str) -> bool:
             return True
     return False
 _HITRATE_RX = re.compile(r"\bhit[\s-]rate\b|\d+\s+of\s+\d+|positive\s+in\b|\bN\s*=\s*\d+", re.I)
-_N_RX = re.compile(r"\bN\s*=\s*\d+|\b\d+\s+of\s+\d+\b|\bover\s+\d+\s+\w+|\bacross\s+\d+\s+\w+|"
-                   r"\b\d+\s+instances?\b|\b\d+\s+episodes?\b|\b\d+\s+(?:such\s+)?days?\b", re.I)
+# Intervening words are normal English: "Across all 261 RECOVERED instances", "over 46 recovered
+# instances". The original demanded the noun immediately after the digit, so a sentence plainly
+# carrying N=261 was failed for omitting it — a FALSE POSITIVE, found by verifying the rule
+# rather than attributing the failure to the drafter. Up to two modifiers are now tolerated.
+_N_RX = re.compile(r"\bN\s*=\s*\d+"
+                   r"|\b\d+\s+of\s+\d+\b"
+                   # "over 46 recovered instances", "Across all 261 recovered instances" — up to
+                   # two modifiers between the digit and its noun, which is ordinary English.
+                   # "from" is deliberately ABSENT: "from 2 to 2544 sessions" is a RANGE, and
+                   # admitting it would let a sentence with no N at all pass (a false negative
+                   # traded for the false positive — caught by testing both directions).
+                   r"|\b(?:over|across|among)\s+(?:all\s+)?\d+\s+(?:\w+\s+){0,2}"
+                   r"(?:instances?|episodes?|samples?|cases?|drawdowns?|sessions?|days?)\b"
+                   # a bare count noun, but NOT sessions/days: "2544 sessions" is a duration.
+                   r"|\b\d+\s+(?:\w+\s+){0,2}(?:instances?|episodes?|samples?|cases?|drawdowns?)\b",
+                   re.I)
 # "average"/"mean" as a statistic. Excludes idioms that are not the statistic ("on average" alone still
 # counts — it is exactly the hedge this class must not use; "meanwhile"/"meaningful" are word-boundary
 # safe, and "means" as a verb is excluded explicitly).

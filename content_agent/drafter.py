@@ -191,7 +191,43 @@ _TITLE_CAUSAL_RX = re.compile(
 _DIGEST_HEADINGS = ["The mark", "The context", "Next session", "Full recovery"]
 
 
-def normalize_digest_markdown(body: str) -> tuple[str, list[str]]:
+def _strip_recited_sentences(body: str, evidence: str) -> tuple[str, list[str]]:
+    """Remove whole sentences that recite the evidence's INSTRUCTION text verbatim.
+
+    Fourth occurrence across four rounds, so the prompt is not the lever. Deliberately conservative:
+    a sentence is dropped ONLY when >= 9 of its consecutive words appear verbatim in an evidence line
+    that is imperative. Quoting FIGURES is the job and is never an instruction line, so a numbers
+    sentence can never be removed; and removing a whole sentence leaves the surrounding prose intact
+    where removing a fragment would not."""
+    instr = [ln for ln in evidence.splitlines()
+             if re.search(r"\bdo not\b|\bnever\b|\bsay so\b|\bstate this\b|\bin your own words\b|"
+                          r"\bapplies here\b|\bforbidden\b|\blead with\b|\bomit\b|\btell the reader\b",
+                          ln, re.I)]
+    if not instr:
+        return body, []
+
+    def words(s):
+        return re.sub(r"[^0-9a-z ]+", " ", s.lower()).split()
+
+    instr_join = " | ".join(" ".join(words(ln)) for ln in instr)
+    kept, dropped = [], []
+    for para in body.split("\n"):
+        sents, out = re.split(r"(?<=[.!?])\s+", para), []
+        for s in sents:
+            w = words(s)
+            recited = any(" ".join(w[i:i + 9]) in instr_join for i in range(0, max(0, len(w) - 9) + 1)) \
+                if len(w) >= 9 else False
+            if recited:
+                dropped.append(s.strip()[:90])
+            else:
+                out.append(s)
+        kept.append(" ".join(x for x in out if x.strip()) if len(sents) > 1 else para)
+    changes = ([f"removed {len(dropped)} sentence(s) reciting the evidence's instruction text "
+                f"(first: {dropped[0]!r})"] if dropped else [])
+    return ("\n".join(kept), changes) if dropped else (body, [])
+
+
+def normalize_digest_markdown(body: str, evidence: str = "") -> tuple[str, list[str]]:
     """-> (body, changes). Deterministic repairs for the digest format only.
 
     1. TITLE CONNECTIVE -> SEMICOLON. Three prompt attempts failed to stop "X Declines Amid Y"; a
@@ -214,7 +250,12 @@ def normalize_digest_markdown(body: str) -> tuple[str, list[str]]:
             lines[i] = new
             break
 
-    text = "\n".join(lines)
+    # 3. RECITED INSTRUCTION SENTENCES ARE DROPPED — before the heading pass, so a paragraph that was
+    #    ONLY a recited sentence is empty by the time headings are inserted.
+    text, rec = _strip_recited_sentences("\n".join(lines), evidence)
+    changes += rec
+    lines = text.splitlines()
+
     has = {h: re.search(rf"(?mi)^\s{{0,3}}#{{1,4}}\s*{re.escape(h)}\b", text) for h in _DIGEST_HEADINGS}
     if not has["The mark"] and has["The context"]:
         h1 = next((i for i, ln in enumerate(lines) if ln.lstrip().startswith("# ")), None)
@@ -276,7 +317,7 @@ def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = No
     body = body.strip().removeprefix("```markdown").removeprefix("```").removesuffix("```").strip()
     normalised = []
     if "MEASURED DAILY DIGEST EVIDENCE" in evidence:
-        body, normalised = normalize_digest_markdown(body)
+        body, normalised = normalize_digest_markdown(body, evidence)
         for c in normalised:
             print(f"[drafter] normalised -> {c}")
     title = body.splitlines()[0].lstrip("# ").strip() if body.startswith("#") else "Untitled"
