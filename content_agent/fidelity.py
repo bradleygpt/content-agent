@@ -442,8 +442,20 @@ def check_completeness(draft: str, evidence: str) -> list[dict]:
                     "detail": "the draft does not end on a complete sentence — generation was cut off. "
                               f"tail: ...{body[-90:]!r}"})
     for i, (marker, heading_rx) in enumerate(_SECTION_REQUIRED):
-        # marker None -> always required; otherwise required only when the evidence carries that section
+        # marker None -> always required; otherwise required only when the evidence carries that
+        # section — and FORBIDDEN when it does not. The first dispersion-led digest of the rebuilt
+        # format (2026-07-27 nightly) wrote "## Next session" and "## Full recovery" anyway and
+        # padded them with fabricated scaffolding ("was not measured; instead...") plus an invented
+        # SURVIVORSHIP claim about it. A section whose evidence is absent can only contain padding
+        # or invention; its heading is a hard fail, symmetric with MISSING-SECTION.
         if marker is not None and marker not in evidence:
+            if re.search(heading_rx, draft):
+                have = DIGEST_HEADINGS[i]
+                out.append({"type": "EXTRA-SECTION", "token": have,
+                            "detail": f'the draft carries "## {have}" but the evidence has no such '
+                                      f"section this session — there is nothing measured to write "
+                                      f"there, so the section can only be padding or invention. "
+                                      f"Omit the heading and its prose entirely."})
             continue
         if not re.search(heading_rx, draft):
             want = DIGEST_HEADINGS[i]

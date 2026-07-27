@@ -480,6 +480,15 @@ def main():
     check("quiet session: sections 3/4 not required, 1/2 still are",
           not check_completeness("## The mark\nDispersion was 2.1pp.\n## The context\nVIX rose.",
                                  DIGEST_EV.replace("SECTION 3", "X")))
+    # ...and FORBIDDEN when absent: the first dispersion-led digest of the rebuilt format wrote
+    # "## Full recovery" anyway and padded it with fabricated scaffolding. Symmetric with MISSING.
+    check("quiet session: writing '## Full recovery' anyway -> EXTRA-SECTION",
+          any(f["type"] == "EXTRA-SECTION" and f["token"] == "Full recovery"
+              for f in check_completeness("## The mark\nx.\n## The context\ny.\n## Full recovery\n"
+                                          "Not measured, but here are words.",
+                                          DIGEST_EV.replace("SECTION 3", "X"))))
+    check("crossing session: '## Full recovery' present is NOT extra (evidence carries SECTION 4)",
+          not any(f["type"] == "EXTRA-SECTION" for f in comp(_hdr)))
 
     # --- SCOPING: non-digest studies are untouched ------------------------------------------------
     check("median depth on a RECOVERY study -> rule does not fire (different class)",
