@@ -134,6 +134,37 @@ def main():
     check("no sign-FLIP note in evidence -> check inert",
           not _sfi(wrong, "MEASURED RELATIONAL EVIDENCE with no proxy note"))
 
+    # --- SURVIVOR-SELECTED (single-name pairs slice), both directions ------------------------------
+    # A bare-ticker side makes the evidence carry the label (the renderer emits it structurally);
+    # the anchor-anchor pair must NOT carry it; presence needs the selection concept, and honestly
+    # carrying it must not read as inventing SURVIVORSHIP.
+    ev_sn = evidence_for("pair:AAPL|MSFT")
+    if ev_sn:
+        blk = ev_sn["evidence"]
+        check("single-name pair evidence carries SURVIVOR-SELECTED", "SURVIVOR-SELECTED" in blk)
+        check("anchor-anchor pair evidence does NOT", "SURVIVOR-SELECTED" not in block)
+        _r1 = run_fidelity("AAPL and MSFT are studied because they survived and dominated; the "
+                           "correlation was 0.5043. Each regime is one historical instance; the "
+                           "survivor-only panel understates crashes.", blk)
+        check("selection concept satisfies SURVIVOR-SELECTED",
+              not any(f["token"] == "SURVIVOR-SELECTED" and f["type"] == "MISSING-LABEL"
+                      for f in _r1["failures"]))
+        _r2 = run_fidelity("The correlation was 0.5043; the survivor-only panel understates "
+                           "crashes. Each regime is one historical instance.", blk)
+        check("bare 'survivor' does NOT satisfy SURVIVOR-SELECTED (selection concept required)",
+              any(f["token"] == "SURVIVOR-SELECTED" and f["type"] == "MISSING-LABEL"
+                  for f in _r2["failures"]))
+        _r3 = run_fidelity("These names are survivor-selected winners; corr 0.5043; single "
+                           "instances; survivor-only panel understates crashes.", blk)
+        check("'survivor-selected' does not fire INVENTED SURVIVORSHIP (lookahead)",
+              not any(f["type"] == "INVENTED-LABEL" for f in _r3["failures"]))
+        check("asserting SURVIVOR-SELECTED where evidence lacks it -> INVENTED-LABEL",
+              any(f["type"] == "INVENTED-LABEL" and f["token"] == "SURVIVOR-SELECTED"
+                  for f in run_fidelity("This anchor set is survivor-selected. Corr 0.3307; single "
+                                        "instances; survivor-only panel.", block)["failures"]))
+    else:
+        checks.append((True, "(skipped SURVIVOR-SELECTED checks: AAPL|MSFT not in artifact yet)"))
+
     _finish(checks, ok)
 
 
