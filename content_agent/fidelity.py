@@ -377,7 +377,12 @@ def _is_evidence_text(sentence: str, match: re.Match, evidence: str) -> bool:
 # accompanied by a stronger marker, so nothing is lost. A rule that only ever fires wrongly is worse
 # than no rule: it teaches the writer to fight the checker instead of the claim.
 _CAUSAL_RX = re.compile(
-    r"\b(?:drove|driven\s+by|caused|causing|triggered|sparked|fuel(?:l?ed)|led\s+to|"
+    # PRESENT TENSE MATTERS. The list carried only past forms ("triggered", "caused"), so the note
+    # "presidential elections regularly TRIGGER market drawdowns" — the exact claim this rule exists to
+    # catch — did not even match the pattern. A standing generalisation is stated in the present tense;
+    # that is the tense a false causal claim most naturally takes.
+    r"\b(?:drives?|drove|driven\s+by|caus(?:e|es|ed|ing)|trigger(?:s|ed|ing)?|spark(?:s|ed|ing)?|"
+    r"fuel(?:s|l?ed|ling|ing)?|leads?\s+to|led\s+to|"
     r"explains?|explained\s+by|respond(?:ed|ing)\s+to|in\s+response\s+to|"
     r"because\s+of|due\s+to|thanks\s+to|owing\s+to|on\s+the\s+back\s+of|attributable\s+to|"
     r"blamed\s+on|result(?:ed|ing)\s+from|prompted\s+by|weighed\s+on|dragged\s+(?:down\s+)?by|"
@@ -435,11 +440,57 @@ def check_completeness(draft: str, evidence: str) -> list[dict]:
     return out
 
 
+# Causation asserted BY the piece is the target. Causation the piece QUOTES (the folklore it exists to
+# refute) or DENIES (a disclaimer that causes are unknowable) is the opposite of the failure mode, and a
+# METHODOLOGICAL "due to" describes why data is absent rather than why a price moved. Measured before
+# shipping the unscoped rule: all three published flagships would have failed, and four of six hits were
+# one of these three shapes — the drafter is INSTRUCTED to state folklore and to disclaim causality.
+_FOLKLORE_RX = re.compile(
+    r"\b(?:the\s+)?(?:narrative|folklore|story|conventional\s+wisdom|received\s+wisdom|"
+    r"common\s+account|popular\s+account)\b|\b(?:accounts?|commentators?|pundits?|analysts?)\s+"
+    r"(?:often\s+)?(?:say|claim|suggest|argue|insist|tell)|\bis\s+said\s+to\b|"
+    r"\b(?:often|usually|typically)\s+(?:suggests?|claims?|framed)\b", re.I)
+_METHOD_CAUSE_RX = re.compile(
+    r"\b(?:not|never|cannot|can'?t|could\s+not|couldn'?t|un(?:available|measured|measurable)|"
+    r"excluded?|omitted|censored|incomplete|missing|insufficient)\b[^.]{0,50}\bdue\s+to\b"
+    r"|\bdue\s+to\b[^.]{0,50}\b(?:insufficient|incomplete|missing|unavailable|no\s+data|"
+    r"observation\s+window|recentness|limited\s+data|sample)\b", re.I)
+_CAUSE_DENIED_RX = re.compile(
+    r"\b(?:myriad|countless|many|numerous|unknowable|unmeasured|beyond)\b[^.]{0,30}\bfactors?\b"
+    r"|\bno\s+(?:such\s+)?(?:causal|causation)\b|\bnot\s+(?:a\s+)?caus\w+"
+    r"|\bcannot\s+(?:be\s+)?(?:attribut|establish|identif|explain)\w*"
+    r"|\bdoes\s+not\s+(?:imply|establish|show|measure)\b[^.]{0,30}\bcaus\w+", re.I)
+
+
+# HEDGED and DISCLAIMED causation. Measuring the unscoped rule across every historical study draft
+# showed the dominant shape is not a false claim but the OPPOSITE: this publication's whole voice is
+# discussing the LIMITS of causal inference. "might lead to", "could be due to chance", "impossible to
+# ascribe specific causes", "does not address the factors causing these drawdowns", "not a simple
+# calendar-driven pattern". Failing those punishes the brand's core move. A hedged modal is not an
+# assertion, and a sentence that denies causal knowledge is the reverse of the failure mode.
+_HEDGED_CAUSE_RX = re.compile(
+    r"\b(?:might|may|could|would|can|possibly|perhaps|potentially|likely|perhaps|seem\w*|appear\w*)\b"
+    r"[^.]{0,40}\b(?:caus\w+|driv\w+|trigger\w*|lead\s+to|due\s+to|explain\w*|result\w*)", re.I)
+_DISCLAIM_CAUSE_RX = re.compile(
+    r"\bimpossible\s+to\b|\bcannot\s+be\s+(?:ascrib|attribut|determin|establish)\w*"
+    r"|\bdoes\s+not\s+address\b|\bnot\s+a\s+simple\b|\bcoincidental\b|\bby\s+chance\b"
+    r"|\bdue\s+to\s+chance\b|\bnot\s+captured\b|\bunique\s+(?:to|circumstances)\b"
+    r"|\blimitations?\s+due\s+to\b|\bselection\s+bias\b|\bSMALL-N\b", re.I)
+
+
+def _causal_is_asserted(sentence: str) -> bool:
+    """Does THIS sentence ASSERT a cause, rather than quote, hedge, deny, or describe a data limit?"""
+    return not (_FOLKLORE_RX.search(sentence) or _METHOD_CAUSE_RX.search(sentence)
+                or _CAUSE_DENIED_RX.search(sentence) or _HEDGED_CAUSE_RX.search(sentence)
+                or _DISCLAIM_CAUSE_RX.search(sentence))
+
+
 def check_causal_claims(draft: str, evidence: str) -> list[dict]:
-    """-> list of failures. A digest may state that two things moved on the same session; it may never
-    state or imply that one moved the other."""
-    if not _digest_class(evidence):
-        return []
+    """-> list of failures. ALL draft classes, not just the digest: the evidence never measures
+    causation in any format, and a note reading "presidential elections regularly TRIGGER market
+    drawdowns" is exactly the claim this exists to catch (it passed for months because the rule was
+    digest-scoped). Study pieces are held to the same bar, with the three non-assertive shapes above
+    excluded so the rule cannot fail a draft for following its own instructions."""
     out = []
     for sent in re.split(r"(?<=[.!?])\s+", draft):
         s = sent.strip()
@@ -449,7 +500,9 @@ def check_causal_claims(draft: str, evidence: str) -> list[dict]:
         # exactly the wrong reason. Fifth occurrence of this module penalising recited mandatory text —
         # _is_evidence_text existed for it and was wired into the average check only. Reciting the block
         # is still a defect: INSTRUCTION-RECITATION catches it, with the right message.
-        if m and not _is_evidence_text(s, m, evidence):
+        # _causal_is_asserted was defined and NOT wired in on the first attempt, so every exclusion was
+        # dead and the rule fired on all three shapes it was meant to spare. Caught by testing.
+        if m and not _is_evidence_text(s, m, evidence) and _causal_is_asserted(s):
             out.append({"type": "CAUSAL-CLAIM", "token": m.group(0),
                         "detail": f"causal language in a digest — the evidence measures co-movement, "
                                   f"never cause. Say what moved and stop. sentence: {s[:180]}"})

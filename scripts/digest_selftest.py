@@ -174,8 +174,42 @@ def main():
     check("return median still REQUIRES a hit rate",
           "MEDIAN-WITHOUT-N" in fails("The median next session was 0.07% over 46 instances."))
 
-    check("causal rule does NOT fire on a non-digest study",
-          not check_causal_claims("The drawdown was caused by the credit crisis.", RECOVERY_EV))
+    # --- CAUSAL IS NOW ALL-CLASS, AND GATED ON ASSERTION -------------------------------------------
+    # A note reading "presidential elections regularly TRIGGER market drawdowns" passed for weeks
+    # because the rule was digest-scoped — and would not have matched anyway, since the lexicon had
+    # only past-tense "triggered". Both fixed. But this publication's voice is largely ABOUT the limits
+    # of causal inference, so the rule fires only on causation the piece ASSERTS: quoted folklore,
+    # hedged modals, explicit denials and methodological "due to" are all excluded. Measured across
+    # every historical draft: unscoped+ungated failed 19 including all 3 published flagships; gated,
+    # 10, and the only PENDING failure is the target claim.
+    _study_ev = "MEASURED STUDY EVIDENCE\n  five midterm drawdowns since 2004"
+    for _bad in ["US presidential elections regularly trigger market drawdowns.",
+                 "Elections cause drawdowns.",
+                 "Rate moves drive sector rotation.",
+                 "The decline was caused by the selloff."]:
+        check(f"all-class causal fires on an ASSERTED cause: \"{_bad[:38]}…\"",
+              "CAUSAL-CLAIM" in {x["type"] for x in check_causal_claims(_bad, _study_ev)})
+    for _ok in ["The narrative often suggests cyclicals lead lower ahead of midterms due to jitters.",
+                "A period of heightened geopolitical risk might lead to more volatile markets.",
+                "It is impossible to definitively ascribe specific causes.",
+                "It does not address the factors causing these drawdowns.",
+                "Markets are complex systems driven by myriad factors.",
+                "Could be due to chance or circumstances unique to those elections.",
+                "Two events could not be measured due to insufficient observation windows.",
+                "Limitations due to the SMALL-N sample."]:
+        check(f"...but NOT on quoted/hedged/denied/methodological: \"{_ok[:36]}…\"",
+              not check_causal_claims(_ok, _study_ev))
+    check("present-tense 'trigger' is in the lexicon (past-only let the target claim through)",
+          "CAUSAL-CLAIM" in {x["type"] for x in check_causal_claims("Elections trigger selloffs.",
+                                                                    _study_ev)})
+
+    # SUPERSEDED 2026-07-27: the rule was digest-scoped, which is how a note asserting "presidential
+    # elections regularly trigger market drawdowns" reached pending. It is now ALL-CLASS — a study
+    # piece is held to the same bar, because the evidence measures causation in no format.
+    check("causal rule NOW fires on a non-digest study too (was digest-scoped)",
+          "CAUSAL-CLAIM" in {x["type"] for x in
+                             check_causal_claims("The drawdown was caused by the credit crisis.",
+                                                 RECOVERY_EV)})
 
     # --- CENSORED label detection (GENERAL checker regression, not digest-specific) ----------------
     # Lives here because this is the active checker self-test. The evidence builders render required
