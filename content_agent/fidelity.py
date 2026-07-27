@@ -55,9 +55,13 @@ _UNIT_RX = [
     # lexicon has to know the word — without it, "over the next 20 sessions was 1.73%" resolved 20 to
     # PCT from the trailing figure and failed every digest that stated a horizon in prose.)
     ("session", r"sessions?\b"),
+    # "analogs?" joined 2026-07-27: without it, "fifteen notable analogs" carried no adjacent unit,
+    # so the word-number was never extracted and an invented count of the analog set sailed through
+    # THREE digest drafts (the digit form was caught; the model routed to the word form). With the
+    # noun in the lexicon, both "150 analogs" (binds) and "fifteen analogs" (NO-MATCH) resolve.
     ("count", r"events?\b|meetings?\b|midterms?\b|elections?\b|episodes?\b|cases?\b|instances?\b|"
               r"drawdowns?\b|anecdotes?\b|stocks?\b|names?\b|(?:data\s+)?points?\b|occurrences?\b|"
-              r"cycles?\b|samples?\b|\bN\s*=|\bn\s*="),
+              r"cycles?\b|samples?\b|analogs?\b|\bN\s*=|\bn\s*="),
     ("corr", r"corr(?:elation)?s?\b"),
 ]
 # UNIT EQUIVALENCE — deliberately ONE pair, and only in the direction that cannot hide an error.

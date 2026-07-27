@@ -606,6 +606,17 @@ REQUIRED HONESTY LABELS (carry into the answer):
     check("the shipped 5-session aggregate sentence (hit rate + N) -> passes",
           not check_median_discipline("The 5-session analog median was 0.84%, positive in 93 of 150 "
                                       "instances (N=150).", ANALOG_EV))
+    # the "fifteen" evasion, caught mechanically: an invented count of the analog set moved from
+    # digit form (caught) to word form (invisible — no adjacent unit) across three drafts. "analog"
+    # is now a count noun in the lexicon, so the word-number extracts and NO-MATCHes. Both ways:
+    check("invented word-number count of analogs -> NO-MATCH ('fifteen notable analogs')",
+          any(f["type"] == "NO-MATCH" and "fifteen" in f["token"].lower()
+              for f in run_fidelity("Of the eligible sessions, fifteen notable analogs mirror this "
+                                    "state. Not a forecast.", ANALOG_EV)["failures"]))
+    check("the real analog count still binds ('150 analogs')",
+          not any(f["type"] in ("NO-MATCH", "UNIT-MISMATCH")
+                  for f in run_fidelity("Across all 150 analogs the pattern held. Not a forecast.",
+                                        ANALOG_EV)["failures"]))
     # heading requirement rides the SECTION 2A marker, evidence-driven like sections 3/4
     _no_head = "## The mark\nx.\n## The context\ny."
     check("evidence carries SECTION 2A + draft lacks the heading -> MISSING-SECTION",
