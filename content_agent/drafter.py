@@ -272,6 +272,31 @@ THE RULES — every one checked mechanically; a breach fails the draft.
   not import them from habit.
 Output ONLY the markdown post, no preamble, no code fences."""
 
+# THE QUIET-SESSION DIGEST NOTE (option (b) ADOPTED 2026-07-27). The daily identity is now:
+# flagship when the market moved (a crossing), note when it didn't (dispersion-led). The note form
+# is the EXISTENCE-PROVEN shape for thin evidence — the nightly's unattended pair notes went 2-for-3
+# on first exposure while two shortened-flagship arms failed their A/B on the same quiet evidence.
+# This is a proper note task for the digest evidence class, not a truncated flagship.
+DIGEST_NOTE_TASK = """Write ONE short daily note for a QUIET session (no threshold crossing):
+40-130 words, plain text, no markdown headers. In order:
+  (1) the session's best-to-worst sector spread with its two named legs — figures VERBATIM as
+      digits with their units;
+  (2) the S&P 500 reference move, WITH a brief in-your-own-words index caveat (an index or
+      sector-ETF figure is shallower than a typical single stock's) — this sentence is mandatory,
+      not optional colour;
+  (3) ONE sentence on the similar-sessions composition: name ONLY years the evidence's year
+      composition actually lists (years only is fine; any count you give is verbatim digits), or
+      cite 1-2 analog dates EXACTLY as written (YYYY-MM-DD). The eligible pool is counted in
+      SESSIONS — if you state it, write "sessions", never "days";
+  (4) one deferral sentence.
+RULES (checked mechanically): every figure verbatim from the MEASURED EVIDENCE block — never
+computed, rounded, or spelled out ("twenty" is a failure; write the digits or no number). Never
+combine the analogs' outcomes into a median, average, tendency or lean the evidence does not print;
+a median you do state carries its hit rate and N in the same sentence. NO causal language — nothing
+drove, caused, triggered or explains anything. Carry EVERY label the evidence's REQUIRED HONESTY
+LABELS list names, briefly in your own words; assert NONE it does not name (no CENSORED or
+SURVIVORSHIP from habit — a quiet session usually has neither). Output ONLY the note text."""
+
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
 as DIGITS with its unit — never a word-number, never rounded, never "about"/"more than"; comparisons are
@@ -457,7 +482,10 @@ def draft_note(evidence: str, stat_focus: str, fidelity_failures: list[str] | No
     if fidelity_failures:
         user += ["", "FIDELITY FAILURES from your previous attempt — fix EXACTLY these:"] + \
                 [f"- {f}" for f in fidelity_failures]
-    user += ["", NOTE_TASK]
+    # task selection follows the EVIDENCE CLASS, same law as draft_flagship: digest-class evidence
+    # gets the quiet-session digest note, everything else the generic single-stat note.
+    task = DIGEST_NOTE_TASK if "MEASURED DAILY DIGEST EVIDENCE" in evidence else NOTE_TASK
+    user += ["", task]
     body = _chat([{"role": "system", "content": SYSTEM_VOICE},
                   {"role": "user", "content": "\n".join(user)}], num_predict=320)
     body = body.strip().strip("`").strip()

@@ -456,12 +456,17 @@ def main():
     # numbers in a paragraph passed the earlier content-based test while being unscannable.
     _hdr = "## The mark\nx.\n## The context\ny.\n## Next session\nz.\n## Full recovery\nw."
     check("all four '## ' headings present -> passes", not comp(_hdr))
+    # fixtures are FLAGSHIP-LENGTH on purpose: since the note-form exemption (option (b)), a tiny
+    # heading-less string legitimately reads as a note — the original defect these lock against was
+    # a long flagship burying its sections in running prose, so the fixtures now have that shape.
+    _pad = " The measured record continues with further descriptive prose about the session." * 25
     prose_only = ("The mark was a decline. Next session the median was 1%. "
-                  "Full recovery took 542 sessions.")
+                  "Full recovery took 542 sessions." + _pad)
     missing = comp(prose_only)
     check("headings' WORDS in running prose do NOT satisfy the check", "MISSING-SECTION" in missing)
     check("sections 1 and 2 are required even without a crossing",
-          any(f["token"] == "The mark" for f in check_completeness("no headings here.", DIGEST_EV)))
+          any(f["token"] == "The mark"
+              for f in check_completeness("no headings here." + _pad, DIGEST_EV)))
     check("'### The mark' (deeper level) still counts as a heading",
           not comp(_hdr.replace("## The mark", "### The mark")))
 
@@ -626,6 +631,34 @@ REQUIRED HONESTY LABELS (carry into the answer):
           not any(f["type"] in ("NO-MATCH", "UNIT-MISMATCH")
                   for f in run_fidelity("Across all 150 analogs the pattern held. Not a forecast.",
                                         ANALOG_EV)["failures"]))
+    # NOTE-FORM scoping (option (b): quiet sessions ship as notes). A note has no sections BY
+    # DESIGN; the size guard keeps the exemption from excusing a heading-less flagship. Both ways:
+    _note = ("The sector spread ran 2.1pp between semis and staples. The state most resembles "
+             "2008 and 2020. Historical outcomes, not forecasts.")
+    check("note-form draft (no headings, note-sized) -> no MISSING-SECTION",
+          not any(f["type"] == "MISSING-SECTION"
+                  for f in check_completeness(_note, DIGEST_EV.replace("SECTION 3", "X"))))
+    check("note-form still gets TRUNCATED-DRAFT on a cut-off tail",
+          any(f["type"] == "TRUNCATED-DRAFT"
+              for f in check_completeness("The spread ran 2.1pp between", DIGEST_EV)))
+    _wall = ("word " * 300).strip() + "."
+    check("heading-less WALL OF TEXT (flagship-length) still fails MISSING-SECTION",
+          any(f["type"] == "MISSING-SECTION" for f in check_completeness(_wall, DIGEST_EV)))
+    check("a draft WITH headings is still held to the full section contract",
+          any(f["type"] == "MISSING-SECTION"
+              for f in check_completeness("## The mark\nx.", DIGEST_EV)))
+
+    # INDEX-MEASURED presence: the natural "shallower than an individual stock" phrasing satisfies
+    # it (four honest quiet notes were failed for it, 2026-07-27); unrelated prose does not.
+    _im = _LB["INDEX-MEASURED"][1]
+    for _s in ["a shallower move than what's typical for an individual stock.",
+               "index moves are shallower than the median single stock's."]:
+        check(f"natural index caveat satisfies INDEX-MEASURED: \"{_s[:42]}…\"",
+              bool(_re2.search(_im, _s, _re2.I)))
+    for _s in ["The individual stock rallied.", "Semiconductors fell -2.25% on the session."]:
+        check(f"unrelated prose does NOT satisfy INDEX-MEASURED: \"{_s[:40]}…\"",
+              not _re2.search(_im, _s, _re2.I))
+
     # WORD-NUMBER: the digits-only rule made mechanical (8 of 9 live drafts verbalised "fifteen").
     # Both directions: big word-numbers fail in digest class; small idioms and other classes pass.
     from content_agent.fidelity import check_word_numbers

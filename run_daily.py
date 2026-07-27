@@ -239,13 +239,25 @@ def _run_digest(args) -> None:
     prov = {**ev["provenance"], "study_id": ev["study_id"],
             "drafted": dt.datetime.now().isoformat()}
     trig = {"trigger": "digest", "study_id": ev["study_id"], "topic": ev["title_hint"]}
-    fl = _fidelity_gated(draft_flagship, ev["evidence"], topic=ev["title_hint"],
-                         evidence=ev["evidence"], news_hints=None)
+    # THE DAILY IDENTITY (option (b), adopted 2026-07-27): flagship when the market moved (a
+    # crossing), NOTE when it didn't. Measured basis: the flagship shape went 0-for-8 on quiet
+    # evidence and two shortened-flagship arms failed their A/B on the same frozen session, while
+    # the note form passed unattended on first exposure to a new evidence class. Idempotence,
+    # session gating and refuse-on-stale are identical on both paths — they all run above this line.
+    if ev["provenance"]["lead"] == "dispersion":
+        fl = _fidelity_gated(draft_note, ev["evidence"], evidence=ev["evidence"],
+                             stat_focus="the session's sector spread, its notable leg, and the "
+                                        "similar-sessions composition")
+        kind = "note"
+    else:
+        fl = _fidelity_gated(draft_flagship, ev["evidence"], topic=ev["title_hint"],
+                             evidence=ev["evidence"], news_hints=None)
+        kind = "flagship"
     # deterministic repairs are RECORDED, never silent: the reviewer sees every machine edit
     prov = {**prov, "normalised": fl.get("normalised") or []}
-    d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov, fl["fidelity"],
+    d = qs.new_draft(kind, fl["title"], fl["body_md"], prov, fl["fidelity"],
                      ev["evidence"], trig)
-    print(f"[digest]   {d['id']} -> {d['status']} ({len(fl['body_md'].split())} words)")
+    print(f"[digest]   {kind} {d['id']} -> {d['status']} ({len(fl['body_md'].split())} words)")
 
     # chart: deterministic, and only when the session actually had a crossing to chart
     try:

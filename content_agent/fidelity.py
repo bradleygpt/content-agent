@@ -225,6 +225,15 @@ LABELS = {
                 r"small[\s-]*n\b|anecdot|handful|not\s+a\s+(?:statistical\s+)?distribution|"
                 r"(?:only|just)\s+(?:five|5|six|6)\b"),
     "SURVIVORSHIP": (r"SURVIVORSHIP", r"survivor"),
+    # SURVIVOR-SELECTED (single-name pairs slice, 2026-07-27): the SELECTION is the survivorship —
+    # a bare-ticker side is studied because it survived and dominated. Presence demands the
+    # selection CONCEPT, not the bare word "survivor" (which satisfies plain SURVIVORSHIP and says
+    # nothing about why the name is in the study at all).
+    "SURVIVOR-SELECTED": (r"SURVIVOR-SELECTED",
+                          r"survivor[\s-]selected|survived\s+and\s+dominated|"
+                          r"because\s+(?:it|they)\s+survived|selected\s+because|"
+                          r"studied\s+because|by\s+construction\s+of\s+the\s+selection|"
+                          r"not\s+the\s+odds\s+for\s+a\s+name"),
     "SINGLE-INSTANCE": (r"SINGLE[- ]INSTANCE",
                         r"single[\s-]instance|one\s+historical\s+(?:instance|episode)|n\s*=\s*1|"
                         r"each\s+(?:episode|regime|instance)\s+is\s+one"),
@@ -243,9 +252,13 @@ LABELS = {
     "CENSORED": (r"(?m)^\s*(?:[-*]\s*)?CENSORED: |\[CENSORED",
                  r"censored|still\s+underwater|(?:never|not\s+yet)\s+recovered|unknown\s+recovery"
                  r"|(?:not|never)\s+(?:yet\s+)?regained|recovery\s+time[^.]{0,40}\bunknown"),
+    # "shallower ... than ... an individual stock" IS the label's whole content in natural words —
+    # four consecutive honest quiet-note drafts were failed for phrasing it that way (2026-07-27;
+    # the NOT-A-SIGNAL lesson a third time: detection was the problem, not the label).
     "INDEX-MEASURED": (r"INDEX-MEASURED",
                        r"index[\s-]measured|measured\s+on\s+the\s+(?:\w+\s+)?index|index\s+drawdowns|"
-                       r"the\s+index\b|not\s+.{0,20}(?:any\s+)?(?:one|single)\s+stock"),
+                       r"the\s+index\b|not\s+.{0,20}(?:any\s+)?(?:one|single)\s+stock|"
+                       r"shallower[^.]{0,60}\b(?:stocks?|names?)\b"),
     "DISTRIBUTION": (r"LARGE-N", r"distribution"),
     "FORWARD-LOOKING": (r"FORWARD-LOOKING",
                         r"not\s+a\s+(?:prediction|forecast)|no\s+(?:prediction|forecast)|"
@@ -441,6 +454,15 @@ def check_completeness(draft: str, evidence: str) -> list[dict]:
         out.append({"type": "TRUNCATED-DRAFT", "token": "end-of-draft",
                     "detail": "the draft does not end on a complete sentence — generation was cut off. "
                               f"tail: ...{body[-90:]!r}"})
+    # NOTE-FORM drafts (quiet sessions ship as notes — option (b), adopted 2026-07-27): the section
+    # contract is a FLAGSHIP contract, and a note has no sections BY DESIGN. Note-form is detected
+    # structurally — no markdown headings AND note-sized — because run_fidelity cannot be told the
+    # draft kind without changing its signature everywhere. The size guard is load-bearing: a
+    # heading-less FLAGSHIP (the wall-of-text failure) runs hundreds of words and still fails
+    # MISSING-SECTION; the note ceiling is 130 words, so 160 leaves margin without opening a hole.
+    # TRUNCATED-DRAFT above still applies to notes — a note must end on a sentence too.
+    if not re.search(r"(?m)^\s{0,3}#", draft) and len(draft.split()) <= 160:
+        return out
     for i, (marker, heading_rx) in enumerate(_SECTION_REQUIRED):
         # marker None -> always required; otherwise required only when the evidence carries that
         # section — and FORBIDDEN when it does not. The first dispersion-led digest of the rebuilt
@@ -707,7 +729,10 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
 # label-speak in this publication's vocabulary.)
 LABEL_CLAIMS = {
     "SMALL-N": r"\bsmall[\s-]*n\b",
-    "SURVIVORSHIP": r"survivor",
+    # "survivor" would also match "survivor-selected" — the lookahead keeps the two claims distinct
+    # so a draft honestly carrying SURVIVOR-SELECTED cannot be failed for inventing SURVIVORSHIP.
+    "SURVIVORSHIP": r"survivor(?![\s-]selected)",
+    "SURVIVOR-SELECTED": r"\bsurvivor[\s-]selected\b",
     "SINGLE-INSTANCE": r"\bsingle[\s-]instance\b|\bn\s*=\s*1\b",
     "CENSORED": r"\bcensored\b",
     "INDEX-MEASURED": r"\bindex[\s-]measured\b",
