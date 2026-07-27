@@ -575,6 +575,34 @@ def check_instruction_recitation(draft: str, evidence: str) -> list[dict]:
     return []
 
 
+# --- WORD-NUMBERS (digest class) --------------------------------------------------------------------
+# The digest's NUMBERS rule has always said figures are DIGITS copied verbatim; this makes it a hard
+# fail instead of a hope. Forced by a persistent fabrication: 8 of 9 live drafts of the rebuilt digest
+# verbalised the analog-set size as "fifteen" (analogs/sessions/most-closely-resembled — the noun
+# varies, so noun-adjacent extraction cannot chase it). A spelled-out number of this size in a digest
+# is either a conversion of an evidence digit (barred) or an invention (worse); honest small-word
+# idioms ("one of these", "two crises") are untouched because the list starts at eleven. Scoped to
+# digest-class evidence, same as the median rules — study essays are a different register and were
+# not measured for this rule.
+_BIG_WORD_NUM_RX = re.compile(
+    r"\b(?:eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"
+    r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b", re.I)
+
+
+def check_word_numbers(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. Digest-class drafts may not spell out numbers eleven and above."""
+    if not _digest_class(evidence):
+        return []
+    out = []
+    for m in _BIG_WORD_NUM_RX.finditer(draft):
+        ctx = draft[max(0, m.start() - 40):m.end() + 40].replace("\n", " ")
+        out.append({"type": "WORD-NUMBER", "token": m.group(0),
+                    "detail": "digest figures are DIGITS copied verbatim from the evidence — a "
+                              "spelled-out number is a conversion or an invention. Write the "
+                              f"evidence's digit form or omit the count. ctx: {ctx}"})
+    return out
+
+
 def check_median_discipline(draft: str, evidence: str) -> list[dict]:
     """-> list of failures. Sentence-scoped: the hit rate and N must sit in the SAME sentence as the
     median, because a reader takes the number from the sentence they are reading, not from a paragraph
@@ -711,6 +739,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
                                    f"a false caveat is a false claim, same class as a false number"})
 
     failures.extend(check_median_discipline(draft, evidence))
+    failures.extend(check_word_numbers(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
     failures.extend(check_completeness(draft, evidence))
     failures.extend(check_instruction_recitation(draft, evidence))

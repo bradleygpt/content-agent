@@ -617,6 +617,19 @@ REQUIRED HONESTY LABELS (carry into the answer):
           not any(f["type"] in ("NO-MATCH", "UNIT-MISMATCH")
                   for f in run_fidelity("Across all 150 analogs the pattern held. Not a forecast.",
                                         ANALOG_EV)["failures"]))
+    # WORD-NUMBER: the digits-only rule made mechanical (8 of 9 live drafts verbalised "fifteen").
+    # Both directions: big word-numbers fail in digest class; small idioms and other classes pass.
+    from content_agent.fidelity import check_word_numbers
+    check("'fifteen' in a digest draft -> WORD-NUMBER",
+          any(f["type"] == "WORD-NUMBER"
+              for f in check_word_numbers("Of these, fifteen sessions stood out.", ANALOG_EV)))
+    check("'twenty sessions' spelled out -> WORD-NUMBER (conversion of an evidence digit)",
+          any(f["type"] == "WORD-NUMBER"
+              for f in check_word_numbers("Over the next twenty sessions it recovered.", ANALOG_EV)))
+    check("small-word idioms pass ('one of these', 'two crises')",
+          not check_word_numbers("One of these was 2008; the two crises cluster.", ANALOG_EV))
+    check("non-digest class untouched ('twenty years of data' in a study)",
+          not check_word_numbers("The study spans twenty years of data.", RECOVERY_EV))
     # heading requirement rides the SECTION 2A marker, evidence-driven like sections 3/4
     _no_head = "## The mark\nx.\n## The context\ny."
     check("evidence carries SECTION 2A + draft lacks the heading -> MISSING-SECTION",
