@@ -575,6 +575,58 @@ def check_instruction_recitation(draft: str, evidence: str) -> list[dict]:
     return []
 
 
+# --- SIGN-FLIP INVERSION (pair class, bond-proxy) ---------------------------------------------------
+# The one direction-of-claim error that IS deterministically decidable, and it reached review twice
+# before this existed: when a pair's evidence carries the sign-FLIP note (the 10Y side is a YIELD-
+# change series), a clause asserting what stock and bond PRICES did is pure arithmetic on the stated
+# correlation sign — negative yield-basis correlation means prices moved TOGETHER, positive means
+# OPPOSITE. A live draft wrote "this negative correlation indicates that stock and bond prices were
+# moving in opposite directions" one sentence after correctly reciting the flip rule (2026-07-27,
+# rejected factually_wrong). Decidable because: the flag is machine-readable, the claim vocabulary is
+# closed, and the truth is sign(-corr). The GENERAL direction-of-claim problem (outperformance,
+# index-vs-stock framing, method descriptions) is NOT decidable deterministically and stays a
+# review-layer responsibility — the directional flags surface those sentences; they cannot judge them.
+# Clause-scoped (";" and sentence enders): the flip-rule statement "bond prices move inversely to
+# yields" shares a sentence with the claim but not a clause, and must never itself fire the rule —
+# which is why bare "inversely" is deliberately NOT a direction idiom here.
+_FLIP_NOTE_RX = re.compile(r"sign-FLIP", re.I)
+_PRICE_RX = re.compile(r"\bprices?\b", re.I)
+_DIR_OPP_RX = re.compile(r"opposite\s+direction|opposing\s+direction|in\s+opposition|"
+                         r"inverse\s+direction", re.I)
+_DIR_SAME_RX = re.compile(r"same\s+direction|in\s+tandem|mov(?:ed|ing|e)\s+together|"
+                          r"together\s+in\s+the\s+same", re.I)
+_CORR_NEG_RX = re.compile(r"negative\s+corr|corr\w*[^.;]{0,40}\bnegative\b|-0?\.\d+", re.I)
+_CORR_POS_RX = re.compile(r"positive\s+corr|corr\w*[^.;]{0,40}\bpositive\b", re.I)
+
+
+def check_sign_flip_inversion(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. Only when the evidence carries the sign-FLIP note."""
+    if not _FLIP_NOTE_RX.search(evidence):
+        return []
+    out = []
+    for clause in re.split(r"[;\n]|(?<=[.!?])\s+", draft):
+        if not _PRICE_RX.search(clause):
+            continue
+        opp, same = bool(_DIR_OPP_RX.search(clause)), bool(_DIR_SAME_RX.search(clause))
+        if opp == same:                       # neither claim, or both (unparseable) -> not decidable
+            continue
+        neg, pos = bool(_CORR_NEG_RX.search(clause)), bool(_CORR_POS_RX.search(clause))
+        if neg == pos:                        # no corr-sign cue in the SAME clause -> not decidable
+            continue
+        # flip arithmetic: yield-basis negative => prices SAME direction; positive => OPPOSITE
+        wrong = (neg and opp) or (pos and same)
+        if wrong:
+            stated = "negative" if neg else "positive"
+            claimed = "opposite directions" if opp else "the same direction"
+            correct = "the same direction" if neg else "opposite directions"
+            out.append({"type": "SIGN-FLIP-INVERSION", "token": f"{stated} corr -> {claimed}",
+                        "detail": f"the evidence's sign-FLIP note means a {stated} yield-basis "
+                                  f"correlation puts stock and bond PRICES in {correct} — the draft "
+                                  f"claims {claimed}, the reverse of the measurement. "
+                                  f"clause: {clause.strip()[:160]}"})
+    return out
+
+
 # --- WORD-NUMBERS (digest class) --------------------------------------------------------------------
 # The digest's NUMBERS rule has always said figures are DIGITS copied verbatim; this makes it a hard
 # fail instead of a hope. Forced by a persistent fabrication: 8 of 9 live drafts of the rebuilt digest
@@ -740,6 +792,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
 
     failures.extend(check_median_discipline(draft, evidence))
     failures.extend(check_word_numbers(draft, evidence))
+    failures.extend(check_sign_flip_inversion(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
     failures.extend(check_completeness(draft, evidence))
     failures.extend(check_instruction_recitation(draft, evidence))

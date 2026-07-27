@@ -110,6 +110,30 @@ def main():
           any(f["type"] == "CAUSAL-CLAIM"
               for f in fails("The decline was driven by the yield move.")))
 
+    # --- SIGN-FLIP INVERSION: the decidable direction-of-claim error, locked both ways --------------
+    from content_agent.fidelity import check_sign_flip_inversion as _sfi
+    wrong = ("Remember that bond prices move inversely to yields; therefore, this negative "
+             "correlation indicates that stock and bond prices were moving in opposite directions.")
+    check("negative corr narrated as prices 'opposite directions' -> SIGN-FLIP-INVERSION",
+          any(f["type"] == "SIGN-FLIP-INVERSION" for f in _sfi(wrong, block)))
+    right = ("Remember that bond prices move inversely to yields; therefore, this negative "
+             "correlation means stock and bond prices were moving in the same direction.")
+    check("the CORRECT flip narration passes", not _sfi(right, block))
+    check("positive corr + prices 'same direction' -> SIGN-FLIP-INVERSION",
+          any(f["type"] == "SIGN-FLIP-INVERSION"
+              for f in _sfi("The positive correlation of 0.3307 means stock and bond prices moved "
+                            "in the same direction.", block)))
+    check("positive corr + prices 'opposite directions' passes (correct flip)",
+          not _sfi("The positive correlation of 0.3307 means stock and bond prices moved in "
+                   "opposite directions.", block))
+    check("yield-basis direction prose without 'prices' is not judged",
+          not _sfi("Stocks and yields moved in opposite directions; the correlation was negative.",
+                   block))
+    check("the flip-rule statement alone never fires",
+          not _sfi("Bond prices move inversely to yields.", block))
+    check("no sign-FLIP note in evidence -> check inert",
+          not _sfi(wrong, "MEASURED RELATIONAL EVIDENCE with no proxy note"))
+
     _finish(checks, ok)
 
 
