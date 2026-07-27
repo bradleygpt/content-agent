@@ -62,3 +62,24 @@ Run (a)'s A/B first — with the temperature variant as a second arm — because
 format identity and costs an hour. Adopt only what the A/B clears. If neither arm clears, (b) is
 the honest fallback and goes to Bradley as a product decision. Nothing is built until the scope is
 approved and the A/B is measured.
+
+## A/B RESULT (2026-07-27, run same evening; pre-registered bar >= 3/4 first-attempt passes)
+
+| arm | passes | verdict | failure profile |
+|---|---|---|---|
+| baseline (full task, t0.7) | 0/8 | — | 3-20 failures/draft; fabricated sections, invented labels, word-numbers |
+| A1: short task, t0.7 | 2/4 | does not clear | 0-4 failures/draft; 1× CAUSAL-CLAIM, 1× NO-MATCH cluster |
+| A2: short task, t0.4 | 1/4 | does not clear | 0-3 failures; lower temp did NOT help (one truncation) |
+
+**Neither arm cleared; the routing was removed per the frozen rule.** The measurement itself is
+informative: the word-budget hypothesis is confirmed (failures collapsed an order of magnitude,
+drafts landed 312-368 words), but 50% first-attempt is not a shape that ships on this model.
+Context, not adoption: under the production one-retry mechanism, A1's ~50% per attempt implies
+roughly 75% per run — still below the crossing shape's demonstrated reliability.
+
+**ESCALATED TO BRADLEY — option (b), the product question:** should quiet sessions ship as a NOTE
+("flagship on crossing days, note on quiet days")? The strongest evidence in favour is the nightly's
+own unattended 2-for-3 note pass rate on a brand-new evidence class, and the reviewer's input on
+record: that identity is "defensible, not a demotion." Until decided, quiet sessions simply do not
+ship a digest — the format's designed honest outcome. DIGEST_TASK_QUIET remains in drafter.py,
+unrouted, as the measured artifact.

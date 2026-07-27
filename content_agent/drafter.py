@@ -221,6 +221,57 @@ VOICE
 
 Output ONLY the markdown post, no preamble, no code fences."""
 
+# THE QUIET-SESSION DIGEST (scope doc SCOPE_quiet_shape_drafting.md, option (a)).
+# A/B RESULT 2026-07-27: DID NOT CLEAR (2/4 at t0.7, 1/4 at t0.4, bar >=3/4) — NOT ROUTED.
+# Kept because the measurement is the artifact: vs the full task's 0/8 baseline on identical frozen
+# evidence, failures collapsed from 8-20 per draft to 0-4 and word counts landed in budget, so the
+# word-budget-as-invention-pressure hypothesis is confirmed even though the bar wasn't met. Feeds
+# the option-(b) decision (quiet sessions as notes), which is Bradley's product call.
+# A dispersion-led session carries ~300 words of actual evidence; the full skeleton's 400-800-word
+# expectation is the invention pressure (measured 2026-07-27: 0-for-8 attempts, failures all padding —
+# fabricated sections, habit labels, verbalised numbers). This variant is SHORTER THAN THE EVIDENCE
+# FEELS, on purpose: three headings, a hard 400-word ceiling, and an explicit license to stop.
+DIGEST_TASK_QUIET = """Write the daily measured digest for a QUIET session in GitHub-flavored markdown.
+
+=== FILL IN THIS SKELETON. Emit these three headings verbatim, in this order, NOTHING ELSE.
+There is no "Next session" and no "Full recovery" today — no anchor crossed a threshold, so no
+conditional distribution and no recovery measurement exists. Writing those headings fails the draft. ===
+
+# <title: this session's spread, from THIS session's figures. NO causal connective — no amid / as /
+#  after / driven by / despite. Join with a semicolon. Write your own; copy no wording from here.>
+
+## The mark          (~60 words)
+<the best-to-worst sector spread and its two named legs — that IS today's story>
+
+## The context       (~50 words)
+<what else moved the same session, as a short list of figures. No links between them.>
+
+## Similar sessions  (~110 words)
+<name 2-3 analog dates EXACTLY as the evidence writes them (YYYY-MM-DD), each with its own
+next-5 and next-20 outcome; the year composition in one sentence; the 5-session aggregate (only
+if the evidence carries one) in ONE sentence with its hit rate and N>
+
+<close: ~40 words of deferral — what a measured quiet session can and cannot say about tomorrow>
+
+=== END SKELETON. Total 220-320 words; 400 is a HARD ceiling. A quiet session's digest is SUPPOSED
+to be short — the honest output is a small one, and padding past the evidence is how false claims
+happen. When you have stated the spread, the context figures and the analogs, STOP. ===
+
+THE RULES — every one checked mechanically; a breach fails the draft.
+- Every figure comes from the MEASURED EVIDENCE block, copied VERBATIM as digits with its exact
+  unit. Never compute, convert, round, or spell out a number — "twenty" and "fifteen" are failures;
+  write the evidence's digits or no count at all. Never introduce a number not in the evidence.
+- Analog dates are DATA: cite them exactly (YYYY-MM-DD). A date not in the evidence fails the draft.
+- NEVER combine the analogs' 20-session outcomes into a median, average, tendency or lean — the
+  evidence deliberately carries none. A median, where you state one, carries its hit rate and N in
+  the same sentence. The word "average" and "mean" as a statistic are forbidden.
+- NO CAUSATION anywhere, title included: nothing drove, caused, triggered, explains or was behind
+  anything — the evidence measures what moved, never why.
+- Carry EVERY label the evidence's REQUIRED HONESTY LABELS list names, in your own words; assert
+  NONE it does not name. On a quiet session there is usually no CENSORED and no SURVIVORSHIP — do
+  not import them from habit.
+Output ONLY the markdown post, no preamble, no code fences."""
+
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
 as DIGITS with its unit — never a word-number, never rounded, never "about"/"more than"; comparisons are
@@ -342,7 +393,10 @@ def _chat(messages: list[dict], num_predict: int) -> str:
     (~500-950 tokens). The first digest truncated mid-sentence with Section 4 missing while
     num_predict=2400 sat unused. Study blocks are ~3x shorter, which is why this surfaced only here."""
     cfg = CFG["drafting"]
-    opts = {"temperature": 0.7, "num_predict": num_predict, "num_ctx": cfg.get("num_ctx", 8192)}
+    # temperature is config-exposed (default unchanged at 0.7) so the quiet-shape A/B — and any
+    # future per-shape tuning that clears its own measurement — has a lever that is data, not code.
+    opts = {"temperature": cfg.get("temperature", 0.7), "num_predict": num_predict,
+            "num_ctx": cfg.get("num_ctx", 8192)}
     r = requests.post(f"{cfg['ollama_url']}/api/chat",
                       json={"model": cfg["model"], "messages": messages, "stream": False,
                             "options": opts},
@@ -371,6 +425,10 @@ def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = No
     # Task selection follows the EVIDENCE CLASS, not the caller's intent: the block itself says what kind
     # of thing it is, so a mis-routed task can't survive a change of caller.
     if "MEASURED DAILY DIGEST EVIDENCE" in evidence:
+        # QUIET-SHAPE ROUTING REMOVED: the A/B against the frozen 07-27 evidence did not clear its
+        # pre-registered bar (A1 short-task/t0.7: 2/4; A2 short-task/t0.4: 1/4; bar >=3/4; baseline
+        # 0/8). DIGEST_TASK_QUIET stays in the file as the measured artifact for the option-(b)
+        # product decision — do not re-route to it without a new cleared measurement.
         task = DIGEST_TASK
     elif "SECTOR-BY-SECTOR" in evidence or "COMPARATIVE RELATIONAL" in evidence:
         task = FLAGSHIP_TASK_COMPARATIVE
