@@ -540,12 +540,96 @@ def main():
               "- NOT-A-SIGNAL" not in qb)
         check("quiet session: does NOT require CENSORED (nothing censored)", "- CENSORED" not in qb)
         check("quiet session: DOES require SECTOR-PROXY (sector figures shown)", "- SECTOR-PROXY" in qb)
-        check("quiet session: tells the drafter to stop after section 2",
-              "Write sections 1-2 only" in qb)
+        check("quiet session: tells the drafter to stop after section 2 (+ Similar sessions)",
+              "Write sections 1, 2 and Similar sessions only" in qb)
         check("quiet session: no dangling reference to distributions 'below'",
               "conditional distributions below" not in qb)
     except Exception as e:                                  # markets-llm not reachable -> skip, not fail
         checks.append((True, f"(skipped block-shape checks: {type(e).__name__})"))
+
+    # --- CENSORED presence: natural phrasing satisfies; absence still fails (both directions) -------
+    # "Seven instances have NOT regained their prior high — recovery time remains UNKNOWN" is a
+    # complete carry of CENSORED and was hard-failed for word order (2026-07-27). Locked both ways.
+    from content_agent.fidelity import LABELS as _LB2
+    _cen = _LB2["CENSORED"][1]
+    for _s in ["Seven instances have NOT regained their prior high — recovery time remains UNKNOWN.",
+               "One episode has never regained its prior high.",
+               "Unrecovered episodes are censored, not averaged in."]:
+        check(f"natural censoring statement satisfies CENSORED: \"{_s[:42]}…\"",
+              bool(_re2.search(_cen, _s, _re2.I)))
+    for _s in ["All 261 instances regained the prior high.",
+               "The median recovery was 232 sessions over 261 instances."]:
+        check(f"non-censoring prose does NOT satisfy CENSORED: \"{_s[:42]}…\"",
+              not _re2.search(_cen, _s, _re2.I))
+
+    # --- SIMILAR SESSIONS (relational content rebuild, item 1) --------------------------------------
+    # The analog section's two hard guarantees: every analog DATE a draft cites must exist in the
+    # evidence (a date is a fact, and an invented one is a fabricated fact), and every cited OUTCOME
+    # must bind like any other number. Plus the held-out gate: the drafter must not synthesise a
+    # 20-session aggregate the evidence deliberately omits — enforced here to the extent the checker
+    # can (an invented aggregate median must fail MEDIAN-WITHOUT-N or NO-MATCH).
+    ANALOG_EV = """MEASURED DAILY DIGEST EVIDENCE — session of 2026-07-24.
+SECTION 2A — SIMILAR SESSIONS (nearest measured analogs; SIMILARITY, NOT A FORECAST)
+  The nearest analog sessions, each with WHAT FOLLOWED THAT SESSION INDIVIDUALLY:
+    2006-08-14: that day +0.08%, next 5 sessions +2.38%, next 20 sessions +3.60%
+    2008-05-08: that day -0.26%, next 5 sessions +2.42%, next 20 sessions -2.06%
+  Year composition of all 150 analog sessions: 20 instances from 2008, 16 instances from 2020.
+  Aggregate over the next 5 sessions across all 150 analogs: median 0.84%, positive in 93 of 150
+  instances (hit rate 0.62), full range -9.8% to 7.55%, N=150
+REQUIRED HONESTY LABELS (carry into the answer):
+  - NOT-A-SIGNAL: analog outcomes describe what followed comparable past days.
+"""
+    _ra = run_fidelity("On 2006-08-14 the index moved +0.08%, and the next 5 sessions ran +2.38%. "
+                       "Not a forecast.", ANALOG_EV)
+    check("analog date IN evidence binds", not any(f["type"] == "NO-MATCH" and f["token"] == "2006-08-14"
+                                                   for f in _ra["failures"]))
+    _rb = run_fidelity("On 2006-08-15 the index moved +0.08%.", ANALOG_EV)
+    check("analog date NOT in evidence -> NO-MATCH (a fabricated dated fact)",
+          any(f["type"] == "NO-MATCH" and f["token"] == "2006-08-15" for f in _rb["failures"]))
+    _rc2 = run_fidelity("After 2008-05-08 the next 20 sessions ran -3.99%.", ANALOG_EV)
+    check("analog OUTCOME not in evidence -> NO-MATCH",
+          any(f["type"] == "NO-MATCH" and "-3.99" in f["token"] for f in _rc2["failures"]))
+    check("year-mix count binds bare ('16 of the analogs came from 2020')",
+          not any(f["type"] == "NO-MATCH"
+                  for f in run_fidelity("16 of the 150 analogs came from 2020. Not a forecast.",
+                                        ANALOG_EV)["failures"]))
+    # the first live draft wrote the natural "20 instances from 2008" and hard-failed UNIT-MISMATCH
+    # because the evidence's year-mix carried no unit. The evidence now names "instances" per count
+    # (the crisis-line law); this locks that both the count-unit form and the bare form bind.
+    check("year-mix count binds WITH the unit word ('16 instances from 2020')",
+          not any(f["type"] in ("NO-MATCH", "UNIT-MISMATCH")
+                  for f in run_fidelity("The set included 16 instances from 2020. Not a forecast.",
+                                        ANALOG_EV)["failures"]))
+    check("synthesised 20-session analog aggregate (bare median) -> fails",
+          bool(check_median_discipline("Across the analogs the median 20-session outcome was +1.9%.",
+                                       ANALOG_EV)))
+    check("the shipped 5-session aggregate sentence (hit rate + N) -> passes",
+          not check_median_discipline("The 5-session analog median was 0.84%, positive in 93 of 150 "
+                                      "instances (N=150).", ANALOG_EV))
+    # heading requirement rides the SECTION 2A marker, evidence-driven like sections 3/4
+    _no_head = "## The mark\nx.\n## The context\ny."
+    check("evidence carries SECTION 2A + draft lacks the heading -> MISSING-SECTION",
+          any(f["type"] == "MISSING-SECTION" and f["token"] == "Similar sessions"
+              for f in check_completeness(_no_head, ANALOG_EV)))
+    check("draft WITH '## Similar sessions' heading -> passes",
+          not any(f["type"] == "MISSING-SECTION"
+                  for f in check_completeness(_no_head + "\n## Similar sessions\nz.", ANALOG_EV)))
+    check("evidence WITHOUT SECTION 2A -> heading not required",
+          not any(f["token"] == "Similar sessions"
+                  for f in check_completeness(_no_head, DIGEST_EV.replace("SECTION 3", "X"))))
+    # live-builder shape checks, same skip discipline as the block-shape group above
+    try:
+        analog_day = dc.build_digest()          # dc imported in the block-shape group
+        if analog_day.get("analogs"):
+            ab = dc.build_digest_block(analog_day)
+            check("live block: SECTION 2A present when analogs computed", "SECTION 2A" in ab)
+            check("live block: NO 20-session aggregate line for the analogs",
+                  "DELIBERATELY ABSENT: no 20-session aggregate" in ab)
+            check("live block: analog section makes NOT-A-SIGNAL required", "- NOT-A-SIGNAL" in ab)
+            _dates = [n["date"] for n in analog_day["analogs"]["named"]]
+            check("live block: every named analog date is printed", all(d in ab for d in _dates))
+    except Exception as e:
+        checks.append((True, f"(skipped live analog checks: {type(e).__name__})"))
 
     print("DIGEST SELF-TEST (hermetic; fixtures; no network/GPU/queue)\n")
     for good_, name in checks:

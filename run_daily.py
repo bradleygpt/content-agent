@@ -250,7 +250,10 @@ def _run_digest(args) -> None:
     # chart: deterministic, and only when the session actually had a crossing to chart
     try:
         from content_agent.charts import chart_digest_distribution
-        c = chart_digest_distribution(ev["digest"], horizon=20)
+        # horizon follows the piece's spine: 5 sessions since the 2026-07-27 bake-off/held-out result
+        # moved the primary horizon there (digest_core.SPINE_HORIZON). The chart must show the same
+        # distribution the prose leads with.
+        c = chart_digest_distribution(ev["digest"], horizon=5)
         if c:
             rec_path = qs.QUEUE / f"{d['id']}.json"
             rec = json.loads(rec_path.read_text(encoding="utf-8"))

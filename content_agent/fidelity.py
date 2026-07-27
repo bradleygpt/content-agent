@@ -230,8 +230,15 @@ LABELS = {
     # that punishes obedience. Observed twice in production (recovery:ANCHOR_SPY 2026-07-24, then
     # recovery:ANCHOR_NASDAQ in the first nightly). CENSORED is the only anchored label regex; the rest
     # match bare, which is why only this one was affected.
+    # Presence accepts the natural statements of censoring, not just the two word-orders first
+    # imagined. "Seven instances have NOT regained their prior high — recovery time remains UNKNOWN"
+    # is a complete, honest carry of the label and was hard-failed MISSING-LABEL for word order
+    # (2026-07-27, third live draft of the rebuilt digest) — the NOT-A-SIGNAL lesson again:
+    # detection was the problem, not the label. INVENTED-LABEL detection stays narrow (explicit
+    # "censored" only), so broadening presence cannot create false invented-label fires.
     "CENSORED": (r"(?m)^\s*(?:[-*]\s*)?CENSORED: |\[CENSORED",
-                 r"censored|still\s+underwater|(?:never|not\s+yet)\s+recovered|unknown\s+recovery"),
+                 r"censored|still\s+underwater|(?:never|not\s+yet)\s+recovered|unknown\s+recovery"
+                 r"|(?:not|never)\s+(?:yet\s+)?regained|recovery\s+time[^.]{0,40}\bunknown"),
     "INDEX-MEASURED": (r"INDEX-MEASURED",
                        r"index[\s-]measured|measured\s+on\s+the\s+(?:\w+\s+)?index|index\s+drawdowns|"
                        r"the\s+index\b|not\s+.{0,20}(?:any\s+)?(?:one|single)\s+stock"),
@@ -407,9 +414,13 @@ def _digest_class(evidence: str) -> bool:
 # numbers in a paragraph with no header passed the looser content-based test while being unscannable —
 # the format is part of the product, not decoration. Sections 1 and 2 exist in EVERY digest; 3 and 4
 # only when the evidence carries a crossing, so their requirement is still evidence-driven.
-DIGEST_HEADINGS = ["The mark", "The context", "Next session", "Full recovery"]
+DIGEST_HEADINGS = ["The mark", "The context", "Similar sessions", "Next session", "Full recovery"]
 _SECTION_REQUIRED = [(None, r"(?mi)^\s{0,3}#{1,4}\s*the\s+mark\b"),
                      (None, r"(?mi)^\s{0,3}#{1,4}\s*the\s+context\b"),
+                     # Similar sessions (relational content rebuild, item 1) is required exactly when
+                     # the evidence carries the analog section — same evidence-driven rule as 3/4, so
+                     # a thin-state session that omits SECTION 2A demands no heading for it.
+                     ("SECTION 2A", r"(?mi)^\s{0,3}#{1,4}\s*similar\s+sessions\b"),
                      ("SECTION 3", r"(?mi)^\s{0,3}#{1,4}\s*next\s+session\b"),
                      ("SECTION 4", r"(?mi)^\s{0,3}#{1,4}\s*full\s+recovery\b")]
 _TERMINAL_RX = re.compile(r"[.!?][\"')\]]*\s*$")
@@ -451,12 +462,21 @@ _FOLKLORE_RX = re.compile(
     r"(?:often\s+)?(?:say|claim|suggest|argue|insist|tell)|\bis\s+said\s+to\b|"
     r"\b(?:often|usually|typically)\s+(?:suggests?|claims?|framed)\b", re.I)
 _METHOD_CAUSE_RX = re.compile(
+    # "understated/overstated/biased due to ..." is a statement about a NUMBER's limitation — the
+    # SURVIVORSHIP label's mandated content — not about why a price moved. Missing from the first
+    # list; fired on a compliant pair draft 2026-07-27 ("this number is understated due to
+    # SURVIVORSHIP bias"). "due to" stays strict for price claims.
     r"\b(?:not|never|cannot|can'?t|could\s+not|couldn'?t|un(?:available|measured|measurable)|"
-    r"excluded?|omitted|censored|incomplete|missing|insufficient)\b[^.]{0,50}\bdue\s+to\b"
+    r"excluded?|omitted|censored|incomplete|missing|insufficient|"
+    r"understat\w*|overstat\w*|biased)\b[^.]{0,50}\bdue\s+to\b"
     r"|\bdue\s+to\b[^.]{0,50}\b(?:insufficient|incomplete|missing|unavailable|no\s+data|"
     r"observation\s+window|recentness|limited\s+data|sample)\b", re.I)
 _CAUSE_DENIED_RX = re.compile(
     r"\b(?:myriad|countless|many|numerous|unknowable|unmeasured|beyond)\b[^.]{0,30}\bfactors?\b"
+    # "...driven by factors OUTSIDE this analysis" attributes the cause to something explicitly
+    # unmeasured — a disclaimer, the house voice, not an assertion. The adjective-first pattern
+    # above missed the postfix form; fired on a compliant pair draft 2026-07-27.
+    r"|\bfactors?\s+(?:outside|beyond|not\s+(?:in|measured|captured|covered))\b"
     r"|\bno\s+(?:such\s+)?(?:causal|causation)\b|\bnot\s+(?:a\s+)?caus\w+"
     r"|\bcannot\s+(?:be\s+)?(?:attribut|establish|identif|explain)\w*"
     r"|\bdoes\s+not\s+(?:imply|establish|show|measure)\b[^.]{0,30}\bcaus\w+", re.I)

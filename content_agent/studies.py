@@ -27,17 +27,41 @@ def _recovery_anchors() -> dict:
     return json.loads(p.read_text(encoding="utf-8")).get("anchors", {}) if p.exists() else {}
 
 
+def _pair_studies() -> dict:
+    p = MLL / "deliverables" / "relational" / "relational_pairs.json"
+    return json.loads(p.read_text(encoding="utf-8")).get("pairs", {}) if p.exists() else {}
+
+
+def _pair_regime_spread(ev: dict) -> float:
+    """How differently the pair behaved across regimes — max minus min episode correlation. The
+    ranking signal for the pair library: 'when it broke' IS the story, so the pairs whose behaviour
+    changed most rank first and a pair that co-moves identically in every regime ranks last."""
+    cs = [d.get("corr") for d in (ev.get("episodes") or {}).values() if d.get("corr") is not None]
+    return (max(cs) - min(cs)) if len(cs) >= 2 else 0.0
+
+
 # priority order for the cadence fallback ("strongest unpublished study"): the event studies are the
-# richest single-study spines; then the deepest-history recovery anchors.
+# richest single-study spines; then the marquee measured relationships (the most differentiated
+# material in the system — each one is a "how X and Y actually move together, and when that broke"
+# piece); then the deepest-history recovery anchors.
 LIBRARY_PRIORITY = [
     "event:midterm_election", "event:fomc_meeting", "event:pres_election",
+    "pair:ANCHOR_RATE_10Y|ANCHOR_SPY",    # the 2022 stock-bond flip (+0.33 calm -> -0.10 repricing)
+    "pair:ANCHOR_BTC|ANCHOR_GOLD",        # the non-correlation folklore says exists
+    "pair:ANCHOR_XLE|ANCHOR_XLK",         # sector divergence: 0.84 in 2008 -> 0.30 in 2022
     "recovery:ANCHOR_SPY", "recovery:ANCHOR_SMH", "recovery:ANCHOR_NASDAQ", "recovery:ANCHOR_XLK",
     "recovery:ANCHOR_XLF", "recovery:ANCHOR_GOLD", "recovery:ANCHOR_XLE", "recovery:ANCHOR_OIL_WTI",
 ]
 
 
 def list_library() -> list[str]:
-    ids = [f"event:{k}" for k in _event_studies()] + [f"recovery:{a}" for a in _recovery_anchors()]
+    pairs = _pair_studies()
+    # pairs ranked by regime spread, descending — deterministic, and the tail (pairs whose behaviour
+    # never changed) sits behind every event and recovery study rather than crowding the backfill.
+    pair_ids = [f"pair:{k}" for k, _ in
+                sorted(pairs.items(), key=lambda kv: -_pair_regime_spread(kv[1]))]
+    ids = ([f"event:{k}" for k in _event_studies()] + [f"recovery:{a}" for a in _recovery_anchors()]
+           + pair_ids)
     ranked = [s for s in LIBRARY_PRIORITY if s in ids]
     return ranked + [s for s in ids if s not in ranked]
 
@@ -118,9 +142,13 @@ def evidence_for(study_id: str) -> dict | None:
         ev = resc.load_evidence(pair)
         if not ev:
             return None
+        # bond_proxy: the 10Y side is a YIELD-change series, so the stock-bond PRICE correlation is
+        # the sign-flip of the printed number — the block must say so or the flip becomes the
+        # reader's error. Same flag the thesis engine's own escalation path passes.
         return {"study_id": study_id,
                 "title_hint": f"measured relationship — {pair[0].replace('ANCHOR_','')} vs {pair[1].replace('ANCHOR_','')}",
-                "evidence": resc.build_evidence_block(pair, ev),
+                "evidence": resc.build_evidence_block(pair, ev,
+                                                      bond_proxy="ANCHOR_RATE_10Y" in pair),
                 "provenance": {"artifact": "deliverables/relational/relational_pairs.json",
-                               "study_key": key}}
+                               "study_key": key, "regime_spread": round(_pair_regime_spread(ev), 4)}}
     return None

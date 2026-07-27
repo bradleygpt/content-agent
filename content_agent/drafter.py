@@ -81,6 +81,38 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 - Include the weighted two-sided section and a deferral close.
 - Output ONLY the markdown post, no preamble, no code fences."""
 
+# THE MEASURED RELATIONSHIP piece (relational content rebuild, item 3). The evidence class is a PAIR
+# with per-regime rows: one overall correlation, five episode fingerprints (each SINGLE-INSTANCE), and
+# a walk-forward persistence line. The piece's shape is "how X and Y actually move together, and when
+# that broke" — the regime where the number diverged from the overall IS the story. The two failure
+# modes this task exists to prevent: (a) narrating a correlation as a mechanism ("stocks fell BECAUSE
+# yields rose" — the evidence measures co-movement, never cause, and the causal check fails it);
+# (b) presenting an episode fingerprint as a distribution — every per-regime number is one historical
+# instance of that regime type, and the piece must say so.
+PAIR_TASK = """Write a flagship post in GitHub-flavored markdown about ONE measured relationship.
+- First line: "# <title>" (a title that signals measurement over folklore, no clickbait; name the two
+  series, not a story about them).
+- 500-900 words.
+- The spine is the relationship in the MEASURED RELATIONAL EVIDENCE block: how the two series actually
+  moved together, regime by regime. Open with the overall (full-period) correlation and what a single
+  full-period number hides; then walk the per-regime fingerprint; give the greatest editorial weight to
+  the episode where the relationship BROKE from its overall pattern — that divergence is the piece.
+- Every correlation is quoted as VERBATIM DIGITS ("0.3307", "-0.0977"), never rounded, never as a
+  word ("weakly positive" may DESCRIBE a quoted figure, never replace it). Episode day-counts (n=)
+  quote verbatim too.
+- Every per-regime number is a SINGLE INSTANCE — one 2008, one 2020, one 2022 — not a distribution.
+  Say so in your own voice, and carry every label the evidence's REQUIRED HONESTY LABELS list names.
+- CO-MOVEMENT IS NOT CAUSE. Never write that one series drove, led, caused, responded to, or moved
+  because of the other — the evidence contains correlations, and a correlation has no direction. If
+  the evidence carries a sign-flip NOTE (yield-vs-price), state it in your own words; the reader must
+  not be left to flip the sign themselves.
+- Persistence: report the walk-forward sign-agreement and drift verbatim, and say in plain words
+  whether that makes the relationship durable or regime-contingent — using the evidence's own framing,
+  not a stronger one.
+- Include the weighted two-sided section and a deferral close: what a measured co-movement record can
+  and cannot say about the next regime.
+- Output ONLY the markdown post, no preamble, no code fences."""
+
 # THE DAILY MEASURED DIGEST (D1-4). A different contract from the study pieces: the spine is one SESSION,
 # not one study, and the failure modes are specific enough to name. The three that this task exists to
 # prevent: (a) a median printed alone, which reads as a forecast; (b) a causal sentence connecting the
@@ -88,7 +120,7 @@ FLAGSHIP_TASK_COMPARATIVE = """Write a flagship post in GitHub-flavored markdown
 # dispersion-led session genuinely has no conditional distribution, and reaching for one is the lie.
 DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 
-=== FILL IN THIS SKELETON. Emit these four headings verbatim, in this order, nothing else. ===
+=== FILL IN THIS SKELETON. Emit these five headings verbatim, in this order, nothing else. ===
 
 # <title: this session and what moved, from THIS session's figures. NO causal connective —
 #  no amid / as / after / on / driven by / despite / on the back of. Join with a semicolon.
@@ -100,9 +132,16 @@ DIGEST_TASK = """Write the daily measured digest in GitHub-flavored markdown.
 ## The context       (~80 words)
 <what else moved the same session, as a list of figures. No links between them.>
 
+## Similar sessions  (~120 words)
+<the nearest analog sessions by measured state: name 2-4 of the dated sessions EXACTLY as the
+evidence writes them (YYYY-MM-DD), each with its own next-5 and next-20 outcome; the year
+composition in one or two sentences; then, only if the evidence carries one, the 5-session
+aggregate in ONE sentence with its hit rate and N. It is secondary — the named sessions lead.>
+
 ## Next session      (~200 words)
-<the horizon the evidence marks as THE PIECE'S ANSWER, in full, per anchor; the two the
-evidence marks as supporting-only in ONE shared sentence; the crisis split stated>
+<the horizon the evidence marks as THE PIECE'S ANSWER, in full, per anchor; the longer-arc
+horizon after it with its own hit rate and N; the supporting horizon in one brief sentence;
+the crisis split stated>
 
 ## Full recovery     (~180 words)
 <time to regain the prior high: median, range, N, the crisis-vs-ordinary contrast, the censored
@@ -110,13 +149,29 @@ instance, and the survivorship limitation if the evidence names it>
 
 <close: ~60 words of deferral — what a measured session record can and cannot say about tomorrow>
 
-=== END SKELETON. Total 350-650 words; 650 is a hard ceiling. If a section runs past its budget you
+=== END SKELETON. Total 400-800 words; 800 is a hard ceiling. If a section runs past its budget you
 are transcribing the evidence rather than writing — cut. ===
 
-IF THE EVIDENCE HAS NO SECTION 3/4 (no threshold crossing this session): emit ONLY "## The mark" and
-"## The context", then the deferral close, and STOP. Do not substitute another study, do not reach for
-history that is not in the block, do not pad. A short honest digest is the correct output on a quiet
-session.
+IF THE EVIDENCE HAS NO SECTION 3/4 (no threshold crossing this session): emit ONLY "## The mark",
+"## The context" and "## Similar sessions", then the deferral close, and STOP. Do not substitute
+another study, do not reach for history that is not in the block, do not pad. A short honest digest
+is the correct output on a quiet session. If the evidence also has no SECTION 2A, omit "## Similar
+sessions" too — never write a section whose evidence is absent.
+
+SIMILAR SESSIONS — the rules specific to that section
+- Analog dates are DATA. Cite them exactly as the evidence writes them (YYYY-MM-DD). A date the
+  evidence does not contain is a fabricated fact and fails the draft.
+- NEVER state a count of the analog sessions you chose to name ("the five sessions", "fifteen
+  analogs") — that number is yours, not the evidence's, and it fails the draft. The only set sizes
+  that exist are the ones the evidence prints (the analog count and the eligible pool); use those
+  verbatim or no count at all. The instances have their own counts; sessions and instances are
+  different units — copy each with the unit the evidence gives it.
+- Each analog's outcomes belong to that dated session alone. NEVER combine the analogs' 20-session
+  outcomes into a median, average, tendency, or lean — the evidence deliberately carries none, and
+  inventing one is inventing a number.
+- Similarity is measured on state variables, not on stories. Do not write that this session
+  "echoes", "mirrors" or "repeats" a named year or crisis — say which dated sessions the state most
+  resembles and what each did, then stop.
 
 NOW THE RULES. Every one of these is checked mechanically; a breach fails the draft.
 
@@ -188,7 +243,7 @@ the evidence never stated is a false claim. Output ONLY the note text."""
 _TITLE_CAUSAL_RX = re.compile(
     r"\s+(?:amid(?:st)?|as|after|despite|following|on\s+the\s+back\s+of|driven\s+by|due\s+to|"
     r"amidst|owing\s+to|thanks\s+to|because\s+of)\s+", re.I)
-_DIGEST_HEADINGS = ["The mark", "The context", "Next session", "Full recovery"]
+_DIGEST_HEADINGS = ["The mark", "The context", "Similar sessions", "Next session", "Full recovery"]
 
 
 def _strip_recited_sentences(body: str, evidence: str) -> tuple[str, list[str]]:
@@ -319,6 +374,10 @@ def draft_flagship(topic: str, evidence: str, news_hints: list[dict] | None = No
         task = DIGEST_TASK
     elif "SECTOR-BY-SECTOR" in evidence or "COMPARATIVE RELATIONAL" in evidence:
         task = FLAGSHIP_TASK_COMPARATIVE
+    elif "MEASURED RELATIONAL EVIDENCE" in evidence:
+        # the single-pair relationship block (comparative already matched above, so this cannot
+        # swallow the multi-pair class whose header contains the same three words)
+        task = PAIR_TASK
     else:
         task = FLAGSHIP_TASK
     user += ["", task]
