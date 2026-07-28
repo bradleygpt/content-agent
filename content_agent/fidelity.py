@@ -710,6 +710,56 @@ def check_sign_flip_inversion(draft: str, evidence: str) -> list[dict]:
     return out
 
 
+# --- IDENTIFIER LEAKAGE (all classes) ---------------------------------------------------------------
+# Internal identifiers are never reader-appropriate: "Bitcoin (ANCHOR_BTC)" and "the rapid bounce
+# following calm_2013_2017" reached PENDING drafts (2026-07-27 review pass) because nothing checked
+# for them. ANCHOR_* is always a leak. Episode keys are a leak when UNQUOTED — the reviewer's own
+# bar: the RATE_10Y/SPY edit removed ANCHOR_* but left quoted episode keys ("calm_2013_2017") as
+# tolerated styling, so a quoted key passes and a bare one in running prose fails.
+_ANCHOR_LEAK_RX = re.compile(r"\bANCHOR_[A-Za-z0-9_]+")
+_EPISODE_KEY_RX = re.compile(r"(?<![\"“‘'])\b[a-z]+_\d{4}(?:_\d{4}|Q\d)?\b")
+
+
+def check_identifier_leak(draft: str) -> list[dict]:
+    """-> list of failures. Evidence-independent: these tokens are never publishable prose."""
+    out = []
+    for m in _ANCHOR_LEAK_RX.finditer(draft):
+        ctx = draft[max(0, m.start() - 40):m.end() + 30].replace("\n", " ")
+        out.append({"type": "IDENTIFIER-LEAK", "token": m.group(0),
+                    "detail": f"raw internal identifier in prose — use the readable name the "
+                              f"evidence provides. ctx: {ctx}"})
+    for m in _EPISODE_KEY_RX.finditer(draft):
+        ctx = draft[max(0, m.start() - 40):m.end() + 30].replace("\n", " ")
+        out.append({"type": "IDENTIFIER-LEAK", "token": m.group(0),
+                    "detail": f"unquoted episode key in prose — say it in English ('the 2008 crash', "
+                              f"'the 2022 repricing') or quote the engine's window name. ctx: {ctx}"})
+    return out
+
+
+# --- LABEL FURNITURE (all classes) ------------------------------------------------------------------
+# Naming ONE label inline is accepted style ("remains CENSORED"). TWO OR MORE canonical uppercase
+# label terms in the SAME sentence is a pasted checklist, not writing — "INDEX-MEASURED (drawdowns
+# are shallower...), SMALL-N (anecdotes only...), FORWARD-LOOKING (...)" closed a pending note as
+# terminal furniture (2026-07-27 review pass). Case-SENSITIVE on the canonical uppercase forms, so
+# honest lowercase prose ("a single instance", "the survivor-only panel") can never trip it.
+_LABEL_TERM_RX = re.compile(
+    r"\b(?:SMALL-N|LARGE-N|INDEX-MEASURED|FORWARD-LOOKING|SECTOR-PROXY|SINGLE[- ]INSTANCE|"
+    r"CENSORED|SURVIVORSHIP|SURVIVOR-SELECTED|NOT-A-SIGNAL|NOT-A-RANKING|PROXY)\b")
+
+
+def check_label_furniture(draft: str) -> list[dict]:
+    """-> list of failures. A sentence carrying >= 2 canonical uppercase label terms is furniture."""
+    out = []
+    for sent in re.split(r"(?<=[.!?])\s+", draft):
+        hits = _LABEL_TERM_RX.findall(sent)
+        if len(hits) >= 2:
+            out.append({"type": "LABEL-FURNITURE", "token": " + ".join(hits[:4]),
+                        "detail": "two or more label terms pasted into one sentence — a checklist, "
+                                  "not writing. State each caveat in its own words where it belongs. "
+                                  f"sentence: {sent.strip()[:160]}"})
+    return out
+
+
 # --- WORD-NUMBERS (digest class) --------------------------------------------------------------------
 # The digest's NUMBERS rule has always said figures are DIGITS copied verbatim; this makes it a hard
 # fail instead of a hope. Forced by a persistent fabrication: 8 of 9 live drafts of the rebuilt digest
@@ -879,6 +929,8 @@ def run_fidelity(draft: str, evidence: str) -> dict:
 
     failures.extend(check_median_discipline(draft, evidence))
     failures.extend(check_word_numbers(draft, evidence))
+    failures.extend(check_identifier_leak(draft))
+    failures.extend(check_label_furniture(draft))
     failures.extend(check_sign_flip_inversion(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
     failures.extend(check_completeness(draft, evidence))

@@ -659,6 +659,30 @@ REQUIRED HONESTY LABELS (carry into the answer):
         check(f"unrelated prose does NOT satisfy INDEX-MEASURED: \"{_s[:40]}…\"",
               not _re2.search(_im, _s, _re2.I))
 
+    # IDENTIFIER-LEAK + LABEL-FURNITURE (the review-layer classes made mechanical), both directions.
+    from content_agent.fidelity import check_identifier_leak, check_label_furniture
+    for _s in ["Bitcoin (ANCHOR_BTC) and gold (ANCHOR_GOLD) correlated at 0.0943.",
+               "the rapid bounce following calm_2013_2017 was brief.",
+               "the crash_2008 instance took notably longer.",
+               "the selloff_2018Q4 window shows a different sign."]:
+        check(f"identifier leak fails: \"{_s[:44]}…\"", bool(check_identifier_leak(_s)))
+    for _s in ["the repricing of 2022 broke the pattern.",
+               "during the “calm_2013_2017” period the correlation was 0.3307.",
+               "the 2008 crash took 50.6 months to recover.",
+               "gold and bitcoin correlated at 0.0943 overall."]:
+        check(f"clean prose passes identifier check: \"{_s[:44]}…\"", not check_identifier_leak(_s))
+    for _s in ["INDEX-MEASURED (drawdowns are shallower on an index), SMALL-N (anecdotes only), "
+               "FORWARD-LOOKING (future cycles will differ).",
+               "PROXY (ETF); SINGLE-INSTANCE; INDEX-MEASURED."]:
+        check(f"label checklist fails as furniture: \"{_s[:44]}…\"", bool(check_label_furniture(_s)))
+    for _s in ["One drawdown remains unrecovered (CENSORED), its recovery time unknown.",
+               "These named stress episodes are SINGLE-INSTANCE events. One episode remains "
+               "CENSORED, its recovery time unknown.",
+               "The measurement uses an ETF proxy and each episode is a single instance, so the "
+               "figures are anecdotes rather than a distribution."]:
+        check(f"one-label-per-sentence and lowercase prose pass: \"{_s[:44]}…\"",
+              not check_label_furniture(_s))
+
     # WORD-NUMBER: the digits-only rule made mechanical (8 of 9 live drafts verbalised "fifteen").
     # Both directions: big word-numbers fail in digest class; small idioms and other classes pass.
     from content_agent.fidelity import check_word_numbers
