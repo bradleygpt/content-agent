@@ -697,6 +697,134 @@ REQUIRED HONESTY LABELS (carry into the answer):
     except Exception as e:
         checks.append((True, f"(skipped live analog checks: {type(e).__name__})"))
 
+    # ==================================================================================================
+    # LABEL-PRESENCE PHRASING TABLE — the CLASS treatment (2026-07-27).
+    #
+    # Three separate rounds were lost to the same defect shape: NOT-A-SIGNAL, then CENSORED, then
+    # INDEX-MEASURED — each a presence regex written narrowly enough that an honest draft stating the
+    # caveat in natural words was hard-failed for omitting it. One-off fixes guarantee a fourth.
+    # Every label an evidence builder can require is enumerated here with the phrasings a draft would
+    # ACTUALLY use (must be accepted) and controls that say something else (must be rejected).
+    #
+    # THE STRUCTURAL GUARD BELOW IS THE POINT: a label emitted by any builder that has no detection
+    # entry AND no phrasing row fails this self-test. A new label cannot ship without both. That guard
+    # immediately found NOT-A-RANKING — mandatory in the sector-comparative block since the sector×event
+    # work, with no LABELS entry at all, so it was never required and never invention-guarded.
+    #
+    # Presence is BROAD, LABEL_CLAIMS is NARROW. The asymmetry is deliberate: a draft may state the
+    # caveat any way it likes, but only the explicit label term counts as ASSERTING it.
+    # ==================================================================================================
+    LABEL_PHRASINGS = {
+        "SMALL-N": (["With only five events measured, this is a handful of anecdotes rather than a "
+                     "distribution.",
+                     "Five instances is a small-n sample, not a statistical distribution.",
+                     "These are anecdotes, not a pattern you can lean on.",
+                     "The sample is too small to be called typical — just six occurrences."],
+                    ["The measured median across 268 instances was 0.98%.",
+                     "Semiconductors fell -3.27% on the session."]),
+        "SURVIVORSHIP": (["The panel is survivor-only, so crash co-movement is understated.",
+                          "Names that blew up are absent from the sample, biasing the measurement.",
+                          "Because failed companies drop out of the panel, this figure is understated.",
+                          "The measured recovery is biased short."],
+                         ["The correlation was 0.3307 in the calm stretch.",
+                          "The spread ran 3.71 percentage points."]),
+        "SURVIVOR-SELECTED": (["These names are studied because they survived and dominated.",
+                               "The selection itself is the survivorship: every episode here is a "
+                               "winner's history.",
+                               "This is survivor-selected — the companies that did not make it are "
+                               "not in the library.",
+                               "Its drawdowns all recovered by construction of the selection."],
+                              ["The survivor-only panel understates crash co-movement.",
+                               "AAPL and MSFT correlated at 0.509 overall."]),
+        "SINGLE-INSTANCE": (["Each regime figure is a single instance — one 2008, one 2020.",
+                             "This is one historical episode, not a distribution of them.",
+                             "n=1 per regime type: the 2022 number is how it behaved that once.",
+                             "Every episode here is one sample, so treat it as a case, not a rate."],
+                            ["Across 261 recovered instances the median was 232 sessions.",
+                             "The overall correlation was 0.2717."]),
+        "CENSORED": (["Seven instances have not regained their prior high — recovery time remains "
+                      "unknown.",
+                      "One episode is still underwater, so its recovery time is unknown.",
+                      "Unrecovered episodes are censored, never imputed.",
+                      "Two drawdowns have never recovered and are excluded rather than filled in."],
+                     ["All 261 instances regained the prior high.",
+                      "The median recovery was 232 sessions over 261 instances."]),
+        "INDEX-MEASURED": (["The S&P 500 moved +0.02%, a shallower move than what's typical for an "
+                            "individual stock.",
+                            "Index movements are shallower than the moves of individual stocks.",
+                            "These are index drawdowns, not what any one stock did.",
+                            "An index or sector-ETF figure is not what one company did."],
+                           ["Semiconductors fell -3.27% on the session.",
+                            "The individual stock rallied hard into the close."]),
+        # DISTRIBUTION's positives include the two real published phrasings that a negation-safe
+        # variant falsely failed (see the LABELS comment). "not a distribution" is deliberately NOT
+        # a control here: the measurement showed that rejecting it costs false failures on honest
+        # affirmative prose and catches nothing, so presence stays broad by evidence, not by default.
+        "DISTRIBUTION": (["This is a full distribution of outcomes, not a handful of cases.",
+                          "Across a large sample the distribution of forward returns is wide.",
+                          "This distribution captures observed behavior over a specific window.",
+                          "This observed distribution does not guarantee future outcomes."],
+                         ["The median was 0.98%.", "Semiconductors fell -3.27%."]),
+        "FORWARD-LOOKING": (["Any read-through to the next occurrence is an inference, not a prediction.",
+                             "This is not a forecast of what comes next.",
+                             "History does not guarantee the next episode behaves the same way.",
+                             "Nothing here predicts the next occurrence."],
+                            ["The median drawdown was -19.3% across seven episodes.",
+                             "Energy fell furthest in 2008."]),
+        "SECTOR-PROXY": (["Each sector figure is its ETF's move, a proxy for the sector.",
+                          "Semiconductors are measured via the SMH ETF, standing in for the sector.",
+                          "The sector is represented by an exchange-traded fund, not the whole sector."],
+                         ["The S&P 500 moved +0.02% on the session.",
+                          "The correlation held at 0.3307."]),
+        "NOT-A-SIGNAL": (["This describes what followed comparable past days; it is not a forecast.",
+                          "These are historical outcomes, not predictions for tomorrow.",
+                          "It cannot be interpreted as a forecast of future market behaviour.",
+                          "The record does not predict tomorrow's movements or recommend anything."],
+                         ["The median was 0.84%, positive in 93 of 150 instances.",
+                          "Semiconductors declined -2.25%."]),
+        "NOT-A-RANKING": (["This is measured past dispersion, not a ranking of what to buy or avoid.",
+                           "A sector that fell least historically is not predicted to do so next time.",
+                           "The ordering is not a recommendation — it is what happened.",
+                           "Do not read the sector order as a buy list.",
+                           # phrasings real drafts used, found by re-scoring the queue pre-commit
+                           "Past dispersion does not guarantee future performance, nor is it a "
+                           "ranking of what to hold.",
+                           "NOT-A-RANKING: past dispersion is not predictive of future outcomes.",
+                           "This isn't a ranking—SECTOR-PROXY measurements reflect ETF performance."],
+                          ["Utilities fell least, at a median of -10.3%.",
+                           "The spread between deepest and shallowest was wide."]),
+    }
+    from content_agent.fidelity import LABELS as _ALL_LABELS, LABEL_CLAIMS as _ALL_CLAIMS
+    for _lab, (_pos, _neg) in LABEL_PHRASINGS.items():
+        _rx = _ALL_LABELS.get(_lab, (None, None))[1]
+        check(f"[{_lab}] has a detection entry", bool(_rx))
+        if not _rx:
+            continue
+        for _s in _pos:
+            check(f"[{_lab}] accepts: \"{_s[:46]}…\"", bool(_re2.search(_rx, _s, _re2.I)))
+        for _s in _neg:
+            check(f"[{_lab}] rejects: \"{_s[:46]}…\"", not _re2.search(_rx, _s, _re2.I))
+        check(f"[{_lab}] is INVENTED-LABEL-guarded", _lab in _ALL_CLAIMS)
+
+    # STRUCTURAL GUARD: every label any evidence builder emits in a REQUIRED HONESTY LABELS block
+    # must have BOTH a detection entry and a phrasing row above. This is what makes the class closed
+    # rather than a snapshot — a new label cannot ship without its phrasings being audited.
+    try:
+        import re as _re3
+        from content_agent.studies import MLL as _MLL
+        _emitted = set()
+        for _f in ("generation/digest_core.py", "generation/relational_escalation.py"):
+            _src = (_MLL / _f).read_text(encoding="utf-8")
+            _emitted |= set(_re3.findall(r'"\s*-\s*([A-Z][A-Z-]{3,}):', _src))
+        _uncovered = sorted(l for l in _emitted if l not in LABEL_PHRASINGS)
+        check(f"every builder-emitted label is phrasing-audited (emitted={len(_emitted)}, "
+              f"uncovered={_uncovered or 'none'})", not _uncovered)
+        _undetected = sorted(l for l in _emitted if l not in _ALL_LABELS)
+        check(f"every builder-emitted label has detection (undetected={_undetected or 'none'})",
+              not _undetected)
+    except Exception as e:                                  # markets-llm unreachable -> skip, not fail
+        checks.append((True, f"(skipped structural label guard: {type(e).__name__})"))
+
     print("DIGEST SELF-TEST (hermetic; fixtures; no network/GPU/queue)\n")
     for good_, name in checks:
         print(f"  {'OK ' if good_ else 'XX '} {name}")

@@ -224,7 +224,16 @@ LABELS = {
     "SMALL-N": (r"SMALL-N",
                 r"small[\s-]*n\b|anecdot|handful|not\s+a\s+(?:statistical\s+)?distribution|"
                 r"(?:only|just)\s+(?:five|5|six|6)\b"),
-    "SURVIVORSHIP": (r"SURVIVORSHIP", r"survivor"),
+    # PHRASING-AUDITED 2026-07-27 (see LABEL_PHRASINGS in scripts/digest_selftest.py). Third
+    # occurrence of the narrow-presence defect closed as a CLASS rather than one label at a time:
+    # every label below was tested against the phrasings a draft would actually use. Presence stays
+    # BROAD (accept the honest caveat however it is worded); LABEL_CLAIMS stays NARROW (invention is
+    # only ever the explicit label term). That asymmetry is the design, not an oversight.
+    "SURVIVORSHIP": (r"SURVIVORSHIP",
+                     r"survivor|blew\s+up|failed\s+(?:companies|names|firms)|biased\s+short|"
+                     r"(?:absent|missing)\s+from\s+the\s+(?:sample|panel)|"
+                     r"drop(?:ped|ping)?\s+out\s+of\s+the\s+panel|"
+                     r"still\s+underwater[^.]{0,40}cannot\s+be\s+counted"),
     # SURVIVOR-SELECTED (single-name pairs slice, 2026-07-27): the SELECTION is the survivorship —
     # a bare-ticker side is studied because it survived and dominated. Presence demands the
     # selection CONCEPT, not the bare word "survivor" (which satisfies plain SURVIVORSHIP and says
@@ -233,10 +242,13 @@ LABELS = {
                           r"survivor[\s-]selected|survived\s+and\s+dominated|"
                           r"because\s+(?:it|they)\s+survived|selected\s+because|"
                           r"studied\s+because|by\s+construction\s+of\s+the\s+selection|"
-                          r"not\s+the\s+odds\s+for\s+a\s+name"),
+                          r"not\s+the\s+odds\s+for\s+a\s+name|"
+                          r"selection\s+(?:itself\s+)?is\s+the\s+survivorship|"
+                          r"winner'?s\s+history|did\s+not\s+make\s+it\s+are\s+not"),
     "SINGLE-INSTANCE": (r"SINGLE[- ]INSTANCE",
                         r"single[\s-]instance|one\s+historical\s+(?:instance|episode)|n\s*=\s*1|"
-                        r"each\s+(?:episode|regime|instance)\s+is\s+one"),
+                        r"(?:each|every)\s+(?:episode|regime|instance|case|figure)\s+"
+                        r"(?:here\s+)?is\s+one|is\s+a\s+single\s+instance|one\s+sample\s+per"),
     # The optional list marker is load-bearing. Every evidence builder renders its required labels as
     # "  - CENSORED: ..." bullets, and the original anchor (^\s*CENSORED:) matched none of them — so the
     # label was never REQUIRED, and a draft that dutifully carried it was failed for INVENTING it. A rule
@@ -257,14 +269,34 @@ LABELS = {
     # the NOT-A-SIGNAL lesson a third time: detection was the problem, not the label).
     "INDEX-MEASURED": (r"INDEX-MEASURED",
                        r"index[\s-]measured|measured\s+on\s+the\s+(?:\w+\s+)?index|index\s+drawdowns|"
-                       r"the\s+index\b|not\s+.{0,20}(?:any\s+)?(?:one|single)\s+stock|"
-                       r"shallower[^.]{0,60}\b(?:stocks?|names?)\b"),
+                       r"the\s+index\b|"
+                       r"not\s+.{0,20}(?:any\s+)?(?:one|single)\s+(?:stock|name|company)|"
+                       r"not\s+what\s+(?:any\s+)?one\s+(?:stock|name|company)|"
+                       r"shallower[^.]{0,60}\b(?:stocks?|names?|compan(?:y|ies))\b"),
+    # DELIBERATELY BROAD, after trying the alternative and MEASURING it. A negation-safe variant was
+    # written first (accept "distribution" only in affirmative constructions) to stop "not a
+    # distribution" — the sentence a SMALL-N draft is instructed to write — from satisfying a LARGE-N
+    # requirement. Re-scoring the whole queue showed that variant produced TWO false failures on
+    # already-published notes ("This distribution captures observed behavior…", "this observed
+    # distribution does not guarantee…") and ZERO true catches: the "rule that only ever fires
+    # wrongly" signature this module already refuses elsewhere. Reverted.
+    # The residual hole is real but small and belongs elsewhere: a LARGE-N draft asserting "not a
+    # distribution" is making a FALSE CHARACTERISATION, which is a content error, not an absent
+    # caveat — presence detection's job is only whether the caveat was made. Note that a general
+    # negation guard on presence would be actively wrong: most honest labels are stated in negative
+    # form ("not a forecast", "never recovered", "nor is it a ranking"), so rejecting negated matches
+    # would break NOT-A-SIGNAL, FORWARD-LOOKING, CENSORED and NOT-A-RANKING at once. DISTRIBUTION is
+    # the only affirmative-form label in the set, which is why the problem looks general and isn't.
     "DISTRIBUTION": (r"LARGE-N", r"distribution"),
     "FORWARD-LOOKING": (r"FORWARD-LOOKING",
                         r"not\s+a\s+(?:prediction|forecast)|no\s+(?:prediction|forecast)|"
                         r"(?:doesn'?t|does\s+not|cannot|can'?t)\s+(?:predict|forecast|tell)|"
-                        r"inference|history\b[^.]{0,40}not\s+a\s+guarantee|forward[\s-]looking"),
-    "SECTOR-PROXY": (r"SECTOR-PROXY", r"proxy|\betf\b"),
+                        r"inference|history\b[^.]{0,40}not\s+a\s+guarantee|forward[\s-]looking|"
+                        r"does\s+not\s+guarantee|nothing\s+(?:here\s+)?(?:predicts|guarantees)|"
+                        r"no\s+basis\s+for\s+predicting"),
+    "SECTOR-PROXY": (r"SECTOR-PROXY",
+                     r"proxy|\betf\b|exchange[\s-]traded\s+fund|"
+                     r"stand(?:s|ing)?\s+in\s+for\s+the\s+sector"),
     # DETECTION WAS THE PROBLEM, NOT THE LABEL. The label is exactly right on a crossing-led digest —
     # sections 3/4 ARE conditional distributions. But the presence regex demanded "not a forecast"
     # contiguously, so a draft closing with "cannot be interpreted as a forecast of future market
@@ -278,6 +310,23 @@ LABELS = {
                      r"[^.]{0,60}\b(?:forecast|predict|guarantee|recommend|tell\s+you|imply)"
                      r"|what\s+followed|describes?\s+the\s+past|no(?:t)?\s+(?:a\s+)?guarantee"
                      r"|historical\s+outcomes?,?\s+not"),
+    # NOT-A-RANKING was a STRUCTURAL HOLE, found by the 2026-07-27 class audit: the sector-
+    # comparative builder has emitted it as a mandatory label since the sector×event work, and the
+    # checker had no entry at all — so it was never required and never guarded against invention.
+    # Exactly the latent case the class treatment exists to surface (the unit-notation and
+    # digit-bearing-name audits each found one too).
+    "NOT-A-RANKING": (r"NOT-A-RANKING",
+                      # THE LABEL'S OWN NAME COMES FIRST. The first draft of this entry required a
+                      # SPACE after "not", so the hyphenated label term "NOT-A-RANKING" — which three
+                      # already-published notes state verbatim — did not match its own presence
+                      # regex. Caught by re-scoring the queue before commit; it is the very defect
+                      # this audit exists to close, committed inside the fix for it. Every label
+                      # regex must accept the label term itself, hyphens included.
+                      r"not[\s-]a[\s-]ranking|(?:nor|not)\s+is\s+it\s+a[\s-]ranking|"
+                      r"(?:is|are|was)n'?t\s+a[\s-]ranking|"
+                      r"not\s+a\s+recommendation|not\s+a\s+buy\s+list|\bbuy\s+list\b|"
+                      r"is\s+not\s+predicted\s+to|what\s+to\s+(?:buy|avoid|hold)|"
+                      r"ordering\s+is\s+not|not\s+(?:a\s+)?(?:forecast|prediction)\s+of\s+what\s+to"),
 }
 
 # --- MEDIAN-WITHOUT-N (Daily Measured Digest, D1-4) -------------------------------------------------
@@ -740,6 +789,7 @@ LABEL_CLAIMS = {
     "FORWARD-LOOKING": r"\bforward[\s-]looking\b",
     "SECTOR-PROXY": r"\bsector[\s-]proxy\b",
     "NOT-A-SIGNAL": r"\bnot[\s-]a[\s-]signal\b",
+    "NOT-A-RANKING": r"\bnot[\s-]a[\s-]ranking\b",
 }
 
 # INVENTED-LABEL fires on ASSERTIONS, not on mentions that DENY the label applies. A draft wrote "nor
