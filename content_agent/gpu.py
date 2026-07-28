@@ -16,6 +16,12 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 # llama.cpp server ever runs on this box, revisit with a parent-PID check.
 _OLLAMA_NAMES = ("ollama", "ollama.exe", "ollama_llama_server", "ollama_llama_server.exe",
                  "ollama-runner", "ollama runner", "llama-server", "llama-server.exe")
+# The Windows display compositor transiently registers as a COMPUTE app under WDDM (observed
+# 2026-07-28: pid resolved to dwm.exe and the drafting pass yielded to the desktop). dwm is never a
+# workload to yield to — it is the screen — and treating it as a tenant lets any desktop activity
+# starve drafting. Exemption is EXACT-NAME and display-only; quant/philosophy python processes are
+# unaffected, so the yield-to-quant discipline is unchanged.
+_SYSTEM_DISPLAY_NAMES = ("dwm.exe",)
 
 
 def _compute_pids() -> list[int]:
@@ -41,6 +47,8 @@ def gpu_free_for_drafting() -> tuple[bool, str]:
     pids = _compute_pids()
     for pid in pids:
         name = _proc_name(pid)
+        if name in _SYSTEM_DISPLAY_NAMES:
+            continue
         if name and not any(o in name for o in _OLLAMA_NAMES):
             return False, f"non-ollama GPU tenant: {name} (pid {pid})"
     return True, "free" if not pids else "only ollama resident"
