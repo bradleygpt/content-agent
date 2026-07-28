@@ -61,5 +61,9 @@
     "enabled": true,
     "python": "C:/Users/bmhar/code/philosophy-llm/.venv/Scripts/python.exe",
     "_why_python": "markets-llm's scripts need pandas/yfinance; that venv is markets-llm's documented interpreter (its README)"
+  },
+  "tension": {
+    "pair_spread_min": 0.4,
+    "recovery_ratio_min": 3.0
   }
 }

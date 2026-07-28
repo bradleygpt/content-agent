@@ -165,6 +165,36 @@ def main():
     else:
         checks.append((True, "(skipped SURVIVOR-SELECTED checks: AAPL|MSFT not in artifact yet)"))
 
+    # --- TENSION RULE (2026-07-28), both directions ------------------------------------------------
+    from content_agent.studies import is_draftable
+    import content_agent.studies as _st
+    _resc = _st.resc
+    _pairs = _st._pair_studies()
+    if _pairs:
+        _t1 = _resc.pair_tension(_pairs["ANCHOR_RATE_10Y|ANCHOR_SPY"])
+        check("stock-bond pair tension is the SIGN FLIP", _t1 and _t1["kind"] == "sign_flip")
+        _t2 = _resc.pair_tension(_pairs["ANCHOR_BTC|ANCHOR_GOLD"])
+        check("BTC-gold tension is ZERO-ANCHOR (near-zero overall, same-signed episodes)",
+              _t2 and _t2["kind"] == "zero_anchor")
+        check("a uniform pair (XLC|META, spread 0.069) has NO tension -> NOT-DRAFTABLE",
+              _resc.pair_tension(_pairs["ANCHOR_XLC|META"]) is None)
+        check("tension line leads the draftable pair's evidence block",
+              "THE TENSION" in evidence_for("pair:ANCHOR_RATE_10Y|ANCHOR_SPY")["evidence"])
+        check("no tension line in a NOT-DRAFTABLE pair's block (explicit-request path)",
+              "THE TENSION" not in evidence_for("pair:ANCHOR_XLC|META")["evidence"])
+        _lib = list_library()
+        check("NOT-DRAFTABLE pairs never reach the picker", "pair:ANCHOR_XLC|META" not in _lib)
+        check("boring recovery anchors (DXY, XLP) never reach the picker",
+              "recovery:ANCHOR_DXY" not in _lib and "recovery:ANCHOR_XLP" not in _lib)
+        check("XLE recovery survives (50.6mo outlier vs 2.8mo median + censored)",
+              is_draftable("recovery:ANCHOR_XLE") and "recovery:ANCHOR_XLE" in _lib)
+        check("events survive via the authored folklore foil",
+              all(is_draftable(f"event:{k}") for k in ("midterm_election", "pres_election",
+                                                        "fomc_meeting")))
+        _evb = evidence_for("event:midterm_election")["evidence"]
+        check("event block leads with folklore-as-foil, labelled",
+              "THE TENSION" in _evb and "folklore" in _evb.lower())
+
     _finish(checks, ok)
 
 

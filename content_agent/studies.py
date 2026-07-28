@@ -54,6 +54,31 @@ LIBRARY_PRIORITY = [
 ]
 
 
+def _tension_cfg() -> dict:
+    return CFG.get("tension", {"pair_spread_min": 0.4, "recovery_ratio_min": 3.0})
+
+
+def is_draftable(study_id: str) -> bool:
+    """THE TENSION RULE (2026-07-28): no study is draftable on a single measurement. Computed via
+    markets-llm's own tension helpers so the bar and the evidence lead are one definition. A study
+    failing here is NOT-DRAFTABLE and the cadence picker skips it — a boring study producing no post
+    is the honest outcome (the quiet-digest principle generalised; DXY and XLP recovery are the
+    canonical boring anchors). Explicit --study requests bypass this by calling evidence_for
+    directly, same law as every other guard: guards stop the automation, never a person."""
+    kind, _, key = study_id.partition(":")
+    t = _tension_cfg()
+    if kind == "pair":
+        ev = resc.load_evidence(tuple(key.split("|")))
+        return bool(ev and resc.pair_tension(ev, spread_min=t["pair_spread_min"]))
+    if kind == "recovery":
+        entry = _recovery_anchors().get(key)
+        return bool(entry and resc.recovery_tension(entry, ratio_min=t["recovery_ratio_min"]))
+    if kind in ("event", "sector_event"):
+        st = _event_studies().get(key)
+        return bool(st and st.get("folklore"))     # the authored foil IS the event tension
+    return True                                    # digest classes are tensioned by construction
+
+
 def list_library() -> list[str]:
     pairs = _pair_studies()
     # pairs ranked by regime spread, descending — deterministic, and the tail (pairs whose behaviour
@@ -62,6 +87,7 @@ def list_library() -> list[str]:
                 sorted(pairs.items(), key=lambda kv: -_pair_regime_spread(kv[1]))]
     ids = ([f"event:{k}" for k in _event_studies()] + [f"recovery:{a}" for a in _recovery_anchors()]
            + pair_ids)
+    ids = [s for s in ids if is_draftable(s)]      # tension rule: NOT-DRAFTABLE never reaches the picker
     ranked = [s for s in LIBRARY_PRIORITY if s in ids]
     return ranked + [s for s in ids if s not in ranked]
 
@@ -145,10 +171,13 @@ def evidence_for(study_id: str) -> dict | None:
         # bond_proxy: the 10Y side is a YIELD-change series, so the stock-bond PRICE correlation is
         # the sign-flip of the printed number — the block must say so or the flip becomes the
         # reader's error. Same flag the thesis engine's own escalation path passes.
+        t = resc.pair_tension(ev, spread_min=_tension_cfg()["pair_spread_min"])
         return {"study_id": study_id,
                 "title_hint": f"measured relationship — {pair[0].replace('ANCHOR_','')} vs {pair[1].replace('ANCHOR_','')}",
                 "evidence": resc.build_evidence_block(pair, ev,
-                                                      bond_proxy="ANCHOR_RATE_10Y" in pair),
+                                                      bond_proxy="ANCHOR_RATE_10Y" in pair,
+                                                      spread_min=_tension_cfg()["pair_spread_min"]),
                 "provenance": {"artifact": "deliverables/relational/relational_pairs.json",
-                               "study_key": key, "regime_spread": round(_pair_regime_spread(ev), 4)}}
+                               "study_key": key, "regime_spread": round(_pair_regime_spread(ev), 4),
+                               "tension": (t or {}).get("kind") or "NOT-DRAFTABLE"}}
     return None
