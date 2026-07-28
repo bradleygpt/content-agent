@@ -77,7 +77,14 @@ drafts landed 312-368 words), but 50% first-attempt is not a shape that ships on
 Context, not adoption: under the production one-retry mechanism, A1's ~50% per attempt implies
 roughly 75% per run — still below the crossing shape's demonstrated reliability.
 
-**ESCALATED TO BRADLEY — option (b), the product question:** should quiet sessions ship as a NOTE
+**RESOLVED: option (b) ADOPTED 2026-07-27.** Quiet sessions ship as notes; the note form
+produced honest label-complete output on 4 of 4 first attempts against this same frozen
+evidence. That is the adoption evidence and NOT the settled question — N=4 is the sample size
+this publication tells readers not to trust. The confirming sample is the live nightlies,
+tallied in `docs/QUIET_SHAPE_TALLY.md`; the shape is not described as solved until that count
+means something.
+
+**The product question, as it was escalated:** should quiet sessions ship as a NOTE
 ("flagship on crossing days, note on quiet days")? The strongest evidence in favour is the nightly's
 own unattended 2-for-3 note pass rate on a brand-new evidence class, and the reviewer's input on
 record: that identity is "defensible, not a demotion." Until decided, quiet sessions simply do not
