@@ -195,6 +195,24 @@ def main():
         check("event block leads with folklore-as-foil, labelled",
               "THE TENSION" in _evb and "folklore" in _evb.lower())
 
+    # --- EPISODE-KEY EMISSION AUDIT (2026-07-29): every rendered evidence block, all builders ------
+    # The A/B measured every model copying the evidence's bare `covid_2020` into prose (pair shape
+    # 0/6 across five arms). The fix is uniform quoting via _epq at EVERY emission site; this scan
+    # renders one block per builder and fails on any bare key, so a future emission site cannot
+    # quietly regress into a new pair-column. The checker's own leak regex is the scanner.
+    from content_agent.fidelity import _EPISODE_KEY_RX as _ekrx
+    _blocks = {
+        "pair (sign-flip tension + fingerprint rows)":
+            evidence_for("pair:ANCHOR_RATE_10Y|ANCHOR_SPY")["evidence"],
+        "pair (zero-anchor tension)": evidence_for("pair:ANCHOR_BTC|ANCHOR_GOLD")["evidence"],
+        "recovery (outlier tension + notable rows)": evidence_for("recovery:ANCHOR_XLE")["evidence"],
+        "event (folklore lead)": evidence_for("event:midterm_election")["evidence"],
+    }
+    for _name, _blk in _blocks.items():
+        _bare = sorted({m.group(0) for m in _ekrx.finditer(_blk)})
+        check(f"no bare episode keys in {_name} block"
+              + (f" — FOUND {_bare}" if _bare else ""), not _bare)
+
     _finish(checks, ok)
 
 
