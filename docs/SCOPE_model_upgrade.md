@@ -62,3 +62,38 @@ Sources: [WhatLLM 2026 rankings](https://whatllm.org/best-ollama-models),
 [Gemma4 12B vs Qwen3.5 9B](https://www.betterclaw.io/blog/gemma-4-12b-vs-qwen-3-5-9b),
 [Gemma 4 12B VRAM](https://techsy.io/en/blog/gemma-4-12b),
 [Gemma 4 vs Qwen 3.5 benchmarks](https://gemma4all.com/blog/gemma-4-vs-qwen-3-5-benchmarks).
+
+## A/B RESULT (2026-07-29; N=6 first attempts per shape per model, no retries, frozen blocks)
+
+| model | crossing | quiet | pair | review-layer (blind-judged, then unblinded) |
+|---|---|---|---|---|
+| gemma3:12b-q4_K_M (baseline) | 0/6 | 5/6 | 0/6 | count-fabrication x5 ("fifteen") |
+| **gemma4:12b** (think off) | **1/6** | **6/6** | 0/6 | mush x2 (vacuous year-lists); count-fabrication **0** |
+| qwen3.5:9b (think off) | 0/6 | 5/6 | 0/6 | count-fabrication x1; messiest crossing failure spread |
+| qwen3:8b (think off) | 0/6 | 4/6 | 0/6 | template-stub deferral x8; 5 truncations |
+| gemma3:12b-qat | 0/6 | 4/6 | 0/6 | count-fabrication x5 — same tic, same rate |
+
+Notes recorded with the table:
+- gemma4's first arm ran with thinking ON by default and produced 18/18 empty bodies (the budget
+  went to the thinking channel) — a post-cutoff discovery; the arm was purged and rerun think-off.
+- **QUANTIZATION EXONERATED**: QAT (same weights, better quant) reproduces the "fifteen" fabrication
+  at the baseline's rate and passes nothing more. The tic is the weights, not the quant — the
+  ranking is clean.
+- **THE PAIR COLUMN IS EVIDENCE-CAUSED**: every arm failed pair 0/6 on IDENTIFIER-LEAK — every
+  model copies the tension line's unquoted `covid_2020` into prose. Quoting/humanising the episode
+  key in the builder's tension line would likely lift the pair column for ALL models; it was not
+  changed mid-A/B (identical evidence per arm is the design).
+- **THE TENSION RULE KILLED MUSH BY CONSTRUCTION**: 0 mush in 30 pair drafts across all arms —
+  every draft led with the claim. The only mush anywhere was gemma4's 2 vacuous every-year lists
+  on the quiet shape.
+
+DECISION-RULE VERDICT (frozen rule: beat baseline on EVERY shape, no new review-layer class):
+**no arm clears.** gemma4 beats on crossing (1>0) and quiet (6>5), ties 0/6 on the evidence-broken
+pair shape, and introduced the 2 vacuous-list mush instances. It is, however, the only model on
+which the A/B's motivating failure (number verbalisation) is ABSENT — 0 instances against the
+baseline's 5-6 per run.
+
+RECOMMENDED NEXT STEP (not adoption): fix the tension line's episode-key quoting evidence-side,
+then rerun ONLY the pair shape (6 drafts x gemma3 + gemma4). If gemma4 then beats on all three, the
+frozen rule is met on remeasured evidence and the swap question goes to Bradley with a clean table.
+The swap is Bradley's call, not this table's. All five models remain on disk pending the decision.
