@@ -97,6 +97,9 @@ PAIR_TASK = """Write a flagship post in GitHub-flavored markdown about ONE measu
   moved together, regime by regime. Open with the overall (full-period) correlation and what a single
   full-period number hides; then walk the per-regime fingerprint; give the greatest editorial weight to
   the episode where the relationship BROKE from its overall pattern — that divergence is the piece.
+- BOTH ENDS OF THE TENSION MUST APPEAR. The evidence's THE TENSION line is a two-ended claim — a
+  flip has both signs, a spread has both extremes. Citing only one end (the 2008 high without the
+  2022 collapse) tells half the story as if it were the whole story, and fails review.
 - Every correlation is quoted as VERBATIM DIGITS ("0.3307", "-0.0977"), never rounded, never as a
   word ("weakly positive" may DESCRIBE a quoted figure, never replace it). Episode day-counts (n=)
   quote verbatim too.
@@ -300,7 +303,12 @@ SURVIVORSHIP from habit — a quiet session usually has neither). Output ONLY th
 NOTE_TASK = """Write ONE Substack Note (a short single-stat post, 40-130 words, plain text, no markdown
 headers). It must contain exactly one measured statistic from the MEASURED EVIDENCE block (copied verbatim
 as DIGITS with its unit — never a word-number, never rounded, never "about"/"more than"; comparisons are
-made in words without numbers), minimal honest framing, and one deferral sentence. CARRY EVERY honesty label the
+made in words without numbers), minimal honest framing, and one deferral sentence.
+EXCEPTION — when the evidence carries a "THE TENSION" line, the tension IS the note's one claim,
+and a tension has TWO ends (a flip has both signs; a spread has both extremes; a divergence has
+the headline and the stress reading). Cite BOTH of its figures verbatim: a note citing one end of
+a two-ended claim tells half the story, which reads as the whole story and misleads. The
+one-statistic rule still bars every number beyond the tension's own figures. CARRY EVERY honesty label the
 evidence block requires, briefly by name — e.g. a Note whose evidence carries SECTOR-PROXY, SINGLE-INSTANCE
 and CENSORED might close "(ETF proxy; stress episodes are single instances; one episode still unrecovered)"
 — a Note without its labels is not publishable. The mirror rule is equally hard: name ONLY labels the
