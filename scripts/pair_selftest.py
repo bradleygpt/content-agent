@@ -200,6 +200,7 @@ def main():
     # 0/6 across five arms). The fix is uniform quoting via _epq at EVERY emission site; this scan
     # renders one block per builder and fails on any bare key, so a future emission site cannot
     # quietly regress into a new pair-column. The checker's own leak regex is the scanner.
+    from content_agent.fidelity import _ANCHOR_LEAK_RX as _akrx
     from content_agent.fidelity import _EPISODE_KEY_RX as _ekrx
     _blocks = {
         "pair (sign-flip tension + fingerprint rows)":
@@ -212,6 +213,12 @@ def main():
         _bare = sorted({m.group(0) for m in _ekrx.finditer(_blk)})
         check(f"no bare episode keys in {_name} block"
               + (f" — FOUND {_bare}" if _bare else ""), not _bare)
+        # ANCHOR_* audit (round-2 rerun finding): the pair HEADER leaked raw anchor ids into every
+        # model's prose because it was the only name on offer. Prose-facing lines carry readable
+        # names only; the "Relationship:" line is the canonical fixture.
+        _anch = sorted({m.group(0) for m in _akrx.finditer(_blk)})
+        check(f"no raw ANCHOR_ ids in {_name} block"
+              + (f" — FOUND {_anch}" if _anch else ""), not _anch)
 
     _finish(checks, ok)
 
