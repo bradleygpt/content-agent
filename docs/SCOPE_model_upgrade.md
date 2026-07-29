@@ -97,3 +97,25 @@ RECOMMENDED NEXT STEP (not adoption): fix the tension line's episode-key quoting
 then rerun ONLY the pair shape (6 drafts x gemma3 + gemma4). If gemma4 then beats on all three, the
 frozen rule is met on remeasured evidence and the swap question goes to Bradley with a clean table.
 The swap is Bradley's call, not this table's. All five models remain on disk pending the decision.
+
+## PAIR-SHAPE RERUNS (2026-07-29, evidence-side causes removed stepwise) + FINAL VERDICT
+
+| evidence state | gemma3 pair | gemma4 pair | leak class remaining |
+|---|---|---|---|
+| original (bare episode keys + raw ANCHOR_ header) | 0/6 | 0/6 | both |
+| round 2: episode keys quoted (_epq, all builders) | 1/6 | 0/6 | ANCHOR_ header copied 5/6 by BOTH models |
+| round 3: + readable names in the header (_adisp) | **5/6** | 3/6 | none for gemma3; gemma4's own furniture x3 |
+
+**FINAL VERDICT (frozen rule, remeasured evidence): gemma4 does NOT clear — the incumbent stays.**
+gemma4 wins crossing (1/6 vs 0/6) and quiet (6/6 vs 5/6) but loses the remeasured pair shape
+(3/6 vs 5/6) on its own label-furniture habit, not on evidence artifacts. No swap.
+
+The A/B's largest finding was never about models: the pair column was ~85% EVIDENCE-caused.
+gemma3 went 0/6 -> 5/6 with zero model changes — the evidence was handing every model raw
+identifiers as the only available names. Two structural fixes shipped from this (episode-key
+quoting + readable header names, emission-audited in the selftest), and they lift PRODUCTION, not
+just the benchmark. The residual model signatures are real and documented: gemma3 verbalises
+numbers on the crossing shape (0/6 first-attempt, retry-dependent — the standing weak spot);
+gemma4 pastes label furniture and pads thin evidence with vacuous lists; quantization remains
+exonerated. Challenger models stay on disk; re-opening the swap question requires a new
+measurement, not a re-read of this one.
