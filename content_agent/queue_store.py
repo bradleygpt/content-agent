@@ -176,8 +176,15 @@ def approve(did: str, edit_class: str, adapter) -> dict:
             st["streak"] += 1
         if d["kind"] == "flagship":
             st["last_flagship_ts"] = dt.datetime.now().timestamp()
-        sid = f"{'event' if 'event_studies' in d['provenance'].get('artifact','') else 'recovery'}:" \
-              f"{d['provenance'].get('study_key')}"
+        # kind prefix follows the ARTIFACT (2026-07-29): the old event-else-recovery branch would
+        # have recorded a pair approval as "recovery:ANCHOR_A|ANCHOR_B", so published pairs would
+        # never match the picker's "pair:" ids and could be re-picked forever. Found at the FIRST
+        # pair approval, before it landed.
+        _art = d["provenance"].get("artifact", "")
+        _kind = ("event" if "event_studies" in _art
+                 else "pair" if "relational_pairs" in _art
+                 else "recovery")
+        sid = f"{_kind}:{d['provenance'].get('study_key')}"
         if sid not in st["published_study_ids"]:
             st["published_study_ids"].append(sid)
         # UNLOCK-THEN-CONFIRM (2026-07-16): crossing the threshold makes autonomy ELIGIBLE — it never
