@@ -104,6 +104,77 @@ def main():
     check("fomc: footer present", m3["has_footer"])
     check("fomc: PNG non-trivial", (tmp / "fomc.png").stat().st_size > 8000)
 
+    # T5 pair regime fingerprint (2026-07-29) — structural assertions, not pixel comparison
+    m5 = charts.chart_pair_regimes("ANCHOR_RATE_10Y|ANCHOR_SPY", tmp / "pair_flip.png")
+    import sys as _s
+    from content_agent.studies import MLL as _MLL
+    _s.path.insert(0, str(_MLL / "generation"))
+    import relational_escalation as _resc
+    _ev = _resc.load_evidence(("ANCHOR_RATE_10Y", "ANCHOR_SPY"))
+    _n_eps = sum(1 for d in _ev["episodes"].values() if d.get("corr") is not None)
+    check(f"pair: bar count == measured episode count ({_n_eps})", m5["n_bars"] == _n_eps)
+    check("pair: full-period reference line present", m5["reference_line"] is True)
+    check("pair: overall corr matches the artifact", m5["overall_corr"] == _ev["overall_corr"])
+    check("pair: the sign flip is detected (bars cross zero)", m5["crosses_zero"] is True)
+    check("pair: SINGLE-INSTANCE stated on the face", m5["single_instance_on_face"])
+    check("pair: SURVIVORSHIP stated (this pair's evidence carries it)", m5["survivorship_on_face"])
+    check("pair: n-days present for every bar",
+          len(m5["n_days"]) == m5["n_bars"] and all(isinstance(x, int) for x in m5["n_days"]))
+    check("pair: labels are READABLE, not internal keys",
+          all("_" not in l for l in m5["labels"]) and any("2022" in l for l in m5["labels"]))
+    check("pair: footer present", m5["has_footer"])
+    check("pair: PNG non-trivial", (tmp / "pair_flip.png").stat().st_size > 8000)
+    # a pair with no sign flip must NOT report one (both directions)
+    m5b = charts.chart_pair_regimes("ANCHOR_XLE|ANCHOR_XLK", tmp / "pair_noflip.png")
+    check("pair: an all-positive pair does not report crossing zero", m5b["crosses_zero"] is False)
+    # the <2-episode guard, asserted on a SYNTHETIC one-episode pair so the test cannot silently
+    # pass because the real artifact happens to be rich (an "or True" here was a tautology).
+    _real_load = _resc.load_evidence
+    _resc.load_evidence = lambda p: {"overall_corr": 0.5, "episodes": {
+        "crash_2008": {"corr": 0.8, "n_days": 146}, "covid_2020": {"corr": None, "n_days": 0}}}
+    check("pair: <2 measured episodes -> no chart (decoration refused)",
+          charts.chart_pair_regimes("ANCHOR_X|ANCHOR_Y", tmp / "pair_thin.png") is None)
+    _resc.load_evidence = _real_load
+    from content_agent import charts as _c
+    check("pair: unknown pair key -> None, never a broken render",
+          _c.chart_pair_regimes("ANCHOR_NOPE|ANCHOR_ALSONOPE", tmp / "pair_x.png") is None)
+
+    # DISPLAY-NAME MAP — every episode key the builders can emit has a readable name
+    _keys = set()
+    import json as _json
+    _pairs = _json.loads((_MLL / "deliverables" / "relational" / "relational_pairs.json")
+                         .read_text(encoding="utf-8"))["pairs"]
+    for _v in _pairs.values():
+        _keys |= set((_v.get("episodes") or {}).keys()) | set((_v.get("hmm_regimes") or {}).keys())
+    _rec = _json.loads((_MLL / "deliverables" / "relational" / "recovery_stats.json")
+                       .read_text(encoding="utf-8"))["anchors"]
+    for _v in _rec.values():
+        _keys |= {d.get("trough_regime") for d in _v.get("drawdowns", []) if d.get("trough_regime")}
+        _keys |= set((_v.get("summary", {}).get("notable") or {}).keys())
+    _unmapped = sorted(k for k in _keys if k and k not in _resc._EPISODE_DISPLAY)
+    check(f"display-map covers every emitted episode key ({len(_keys)} keys)"
+          + (f" — UNMAPPED {_unmapped}" if _unmapped else ""), not _unmapped)
+    check("unmapped key still never renders as a raw identifier",
+          "_" not in _resc._epd("some_future_regime_2031"))
+
+    # RENDERER — exactly one H1 in a flagship artifact (the duplicated-H1 fix)
+    from content_agent.publisher import ManualFallbackAdapter
+    import re as _re5
+    _res = ManualFallbackAdapter().publish_post("Test Title", "measured, not predicted",
+                                                "# Test Title\n\nBody paragraph here.")
+    _txt = Path(_res["url_or_path"]).read_text(encoding="utf-8")
+    check("renderer: exactly one H1 when the body carries its own",
+          len(_re5.findall(r"(?m)^# ", _txt)) == 1)
+    check("renderer: subtitle still present", "*measured, not predicted*" in _txt)
+    check("renderer: body content preserved", "Body paragraph here." in _txt)
+    _res2 = ManualFallbackAdapter().publish_post("Headless Piece", "sub", "Just a body, no heading.")
+    _txt2 = Path(_res2["url_or_path"]).read_text(encoding="utf-8")
+    check("renderer: H1 still added when the body lacks one",
+          len(_re5.findall(r"(?m)^# ", _txt2)) == 1 and "# Headless Piece" in _txt2)
+    for _p in (_res["url_or_path"], _res2["url_or_path"]):
+        Path(_p).unlink(missing_ok=True)
+        Path(_p).with_suffix(".html").unlink(missing_ok=True)
+
     print("CHART SELF-TEST (hermetic; fixtures + synthetic prices; no GPU/network)\n")
     for good, name in checks:
         print(f"  {'OK ' if good else 'XX '} {name}")

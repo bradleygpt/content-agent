@@ -127,9 +127,42 @@ def chart_digest_distribution(digest: dict, *, horizon: int = 1, out_path: Path 
                   f"more, and the return over the next {horizon} session(s)."))
 
 
+def chart_pair_regimes(pair_key: str, out_path: Path | None = None) -> dict:
+    """Regime-correlation bars for one pair study. Returns None when the pair carries fewer than two
+    measured episodes — a one-bar 'fingerprint' shows no shape and would be decoration, which is the
+    same NOT-DRAFTABLE principle the tension rule applies to prose.
+
+    Episode labels come from relational_escalation._epd, the SAME map the evidence blocks use, so the
+    chart and the prose name the episodes identically and no internal key reaches a reader."""
+    import sys as _sys
+    _sys.path.insert(0, str(MLL / "generation"))
+    import relational_escalation as resc
+    pair = tuple(pair_key.split("|"))
+    ev = resc.load_evidence(pair)
+    if not ev:
+        return None
+    eps = [{"label": resc._epd(k), "corr": d.get("corr"), "n_days": d.get("n_days"),
+            "survivorship": bool(d.get("note"))}
+           for k, d in (ev.get("episodes") or {}).items() if d.get("corr") is not None]
+    if len(eps) < 2:
+        return None
+    a, b = pair
+    label = f"{resc._adisp(a)} vs {resc._adisp(b)}"
+    out = out_path or OUT_CHARTS / f"pair_{a}_{b}_regimes.png".replace("|", "_")
+    return chart_core.chart_pair_regimes(
+        episodes=eps, overall_corr=ev.get("overall_corr"), pair_label=label, out_path=out,
+        pub_name=PUB_NAME, source="the relational engine",
+        window_label="2004-01-01..present",
+        survivorship=any(e["survivorship"] for e in eps),
+        title=f"{label}: correlation by market regime",
+        subtitle=("Each bar is one measured episode; the dashed line is the full-period "
+                  "correlation the episodes disagree with."))
+
+
 CHART_BUILDERS = {
     "midterm_overlay": chart_midterm_overlay,
     "sector_dispersion": chart_sector_dispersion,
     "fomc_distribution": chart_fomc_distribution,
     "digest_distribution": chart_digest_distribution,
+    "pair_regimes": chart_pair_regimes,
 }

@@ -376,6 +376,25 @@ def main():
         prov_f = {**prov, "normalised": fl.get("normalised") or []}
         d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov_f, fl["fidelity"], ev_check, trig)
         print(f"[daily]   flagship {d['id']} -> {d['status']}")
+        # CHART ATTACH, class-routed (2026-07-29): pair FLAGSHIPS get the regime-fingerprint chart,
+        # the same automatic path event/recovery classes have. Notes stay text-only by design — a
+        # 40-130-word note is a single claim, and a chart beside it competes with the claim rather
+        # than carrying it. Failure is non-fatal: the draft stands without the picture.
+        if trig["study_id"].startswith("pair:"):
+            try:
+                from content_agent.charts import chart_pair_regimes
+                c = chart_pair_regimes(trig["study_id"].split(":", 1)[1])
+                if c:
+                    rec_path = qs.QUEUE / f"{d['id']}.json"
+                    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+                    rec["chart"] = c
+                    rec_path.write_text(json.dumps(rec, indent=2), encoding="utf-8")
+                    print(f"[daily]   chart -> {Path(c['path']).name} ({c['n_bars']} bars"
+                          f"{', crosses zero' if c['crosses_zero'] else ''})")
+                else:
+                    print("[daily]   pair has <2 measured episodes — no chart (correct, not a failure)")
+            except Exception as e:                   # noqa: BLE001
+                print(f"[daily]   chart failed ({type(e).__name__}: {e}) — draft stands without it")
 
     if not args.skip_notes:
         n_notes = args.max_notes if args.max_notes is not None else CFG["drafting"]["notes_per_flagship"]

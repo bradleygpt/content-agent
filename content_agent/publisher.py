@@ -100,7 +100,16 @@ class ManualFallbackAdapter:
         OUTBOX.mkdir(parents=True, exist_ok=True)
         name, url = _publication()
         byline = f"\n\n---\n*{name} — {url}*\n" if name else ""
-        body = f"# {title}\n\n*{subtitle}*\n\n{markdown}{byline}"
+        # THE BODY ALREADY OPENS WITH ITS OWN H1. Every flagship draft starts "# <title>" (the task
+        # requires it), so prepending title+subtitle produced a DUPLICATED H1 in every artifact
+        # rendered to date. Prepend the title only when the body does not already carry one; the
+        # subtitle always rides above the body, which is what a paste wants.
+        md = markdown.lstrip()
+        if md.startswith("# "):
+            h1, _, rest = md.partition("\n")          # keep the body's own H1, drop nothing else
+            body = f"{h1}\n\n*{subtitle}*\n\n{rest.lstrip()}{byline}"
+        else:
+            body = f"# {title}\n\n*{subtitle}*\n\n{md}{byline}"
         md_path = OUTBOX / f"{stamp}_{slug}.md"
         md_path.write_text(body + "\n", encoding="utf-8")
         (OUTBOX / f"{stamp}_{slug}.html").write_text(_md_to_html(body), encoding="utf-8")
