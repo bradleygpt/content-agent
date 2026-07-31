@@ -82,14 +82,14 @@ def main():
         run_daily.list_library = lambda: [MID, "event:pres_election", "recovery:ANCHOR_SPY"]
         run_daily.qs.log = lambda *a, **k: None
         state = {"results_watermark": 0, "last_flagship_ts": 0, "published_study_ids": []}
-        got = run_daily._select_trigger(state)
+        got = run_daily._select_trigger(state, allow_override=False)
         check("blocked trigger FALLS THROUGH to the next candidate",
               got is not None and got["study_id"] == "event:pres_election")
 
         # every trigger blocked -> library backfill supplies an unpublished study
         run_daily.days_since_last_draft = lambda sid, *a, **k: (0.2 if sid in
                                                                 (MID, "event:pres_election") else None)
-        got2 = run_daily._select_trigger(state)
+        got2 = run_daily._select_trigger(state, allow_override=False)
         check("all triggers blocked -> backfill picks an unpublished library study",
               got2 is not None and got2["study_id"] == "recovery:ANCHOR_SPY"
               and got2["trigger"] == "backfill")
@@ -97,12 +97,12 @@ def main():
         # backfill NEVER redrafts an already-published study
         state_pub = {**state, "published_study_ids": ["recovery:ANCHOR_SPY"]}
         run_daily.cadence_trigger = lambda *a, **k: None
-        got3 = run_daily._select_trigger(state_pub)
+        got3 = run_daily._select_trigger(state_pub, allow_override=False)
         check("backfill excludes already-published studies", got3 is None)
 
         # nothing blocked -> highest-precedence trigger still wins (no behavior change)
         run_daily.days_since_last_draft = lambda sid, *a, **k: None
-        got4 = run_daily._select_trigger(state)
+        got4 = run_daily._select_trigger(state, allow_override=False)
         check("nothing blocked -> precedence unchanged (calendar first)",
               got4 is not None and got4["study_id"] == MID and got4["trigger"] == "calendar")
     finally:

@@ -21,7 +21,14 @@ _OLLAMA_NAMES = ("ollama", "ollama.exe", "ollama_llama_server", "ollama_llama_se
 # workload to yield to — it is the screen — and treating it as a tenant lets any desktop activity
 # starve drafting. Exemption is EXACT-NAME and display-only; quant/philosophy python processes are
 # unaffected, so the yield-to-quant discipline is unchanged.
-_SYSTEM_DISPLAY_NAMES = ("dwm.exe",)
+# Extended 2026-07-30: m365copilot.exe and msedgewebview2.exe registered as compute apps and the KOSPI
+# drafting pass yielded to a Copilot window. Same failure mode as dwm — Chromium/WinUI shells doing GPU
+# RENDERING, not compute. Evidence at the time: all three together held 730 MiB of 8151, i.e. nothing.
+# ADMISSION CRITERION for this list, so it does not grow by convenience: the process must be a Windows
+# shell/browser surface that cannot host a model, and the card must be measurably near-empty while it
+# runs. A python.exe is never admissible however it is named — that is the quant/philosophy tenant the
+# guard exists for, and yielding to it stays mandatory.
+_SYSTEM_DISPLAY_NAMES = ("dwm.exe", "m365copilot.exe", "msedgewebview2.exe")
 
 
 def _compute_pids() -> list[int]:

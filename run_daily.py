@@ -1,5 +1,10 @@
 """The daily pass — triggers -> draft -> FIDELITY -> queue. Lowest-priority GPU tenant.
 
+EVENT OVERRIDE runs before all of it: "did anything actually happen today" is a prior question to
+"what is the strongest unpublished study", and on the day a market falls 30% the cadence picker is
+asking the wrong one. See content_agent.triggers.event_override for the re-arm/cooldown discipline
+that keeps a long rout to a single flagship.
+
   .venv/Scripts/python.exe run_daily.py [--now] [--study STUDY_ID] [--skip-notes]
 
 --now      single GPU check instead of the polite polling window (for manual runs)
@@ -22,7 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from content_agent import queue_store as qs                      # noqa: E402
 from content_agent.studies import CFG, evidence_for, list_library              # noqa: E402
-from content_agent.triggers import calendar_triggers, notable_results, cadence_trigger  # noqa: E402
+from content_agent.triggers import (calendar_triggers, notable_results, cadence_trigger,  # noqa: E402
+                                    event_override)
 from content_agent.news import topical_hints                     # noqa: E402
 from content_agent.gpu import wait_for_gpu, gpu_free_for_drafting  # noqa: E402
 from content_agent.drafter import draft_flagship, draft_note     # noqa: E402
@@ -87,13 +93,33 @@ def blocked_reason(study_id: str):
     return None, None, {}
 
 
-def _select_trigger(st: dict):
+def _select_trigger(st: dict, allow_override: bool = True):
     """Pick the first candidate the guards allow — FALL THROUGH, never stop at the first block.
 
     Blocking a trigger must not idle the whole pipeline: when the midterm countdown is on cooldown there
     are (as of 2026-07-23) 17 never-drafted studies waiting. Order: real triggers by precedence
     (calendar > notable > cadence), then a LIBRARY BACKFILL over unpublished studies. Backfill never
     includes already-published studies — redrafting published material is the redundancy just removed."""
+    # THE OVERRIDE RUNS FIRST and returns immediately — it is not a fourth candidate in the precedence
+    # list. It bypasses blocked_reason deliberately: the redraft cooldown exists so a COUNTDOWN piece
+    # recurs weekly rather than daily, and it has no business silencing a market that just fell 30%.
+    # The override carries its own re-arm + cooldown (triggers.event_override), which is the guard that
+    # actually fits the case. Its state mutation is persisted here, whether or not it fired, so a
+    # re-arm is not lost on a pass that produced nothing.
+    # `allow_override` exists for the HERMETIC tests, not as a feature. The override is the one step in
+    # trigger selection that reads live prices, so a test of the fall-through logic would otherwise
+    # depend on what the market did today — passing in July and failing in October for no code reason.
+    # The nightly never passes it.
+    ovr = event_override(st) if allow_override else None
+    qs.save_state(st)
+    if ovr:
+        print(f"[daily] EVENT OVERRIDE: {ovr['study_id']} {ovr['pct']:+.2f}% over "
+              f"{ovr['window_sessions']} sessions ({ovr['from_date']}..{ovr['to_date']}) "
+              f"— taking precedence over calendar/notable/cadence")
+        qs.log("daily_event_override", study_id=ovr["study_id"], trigger="event_override",
+               pct=ovr["pct"], window_sessions=ovr["window_sessions"], to_date=ovr["to_date"])
+        return ovr
+
     trigs = calendar_triggers()
     trigs += notable_results(st["results_watermark"])
     cad = cadence_trigger(st["last_flagship_ts"], set(st["published_study_ids"]))

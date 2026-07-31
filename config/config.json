@@ -26,7 +26,14 @@
     },
     "cadence_days": 7,
     "max_pending_per_study": 3,
-    "redraft_cooldown_days": 7
+    "redraft_cooldown_days": 7,
+    "event_override": {
+      "enabled": true,
+      "window_sessions": 20,
+      "threshold_pct": -20.0,
+      "rearm_pct": -10.0,
+      "cooldown_days": 30
+    }
   },
   "news_feeds": [
     "https://www.federalreserve.gov/feeds/press_all.xml",

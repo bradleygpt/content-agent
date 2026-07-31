@@ -209,7 +209,12 @@ def main():
             # df6ab61 law keeps directives digit-free so a mandated figure cannot be recited as data.
             _al = next((l for l in _ib.splitlines() if "CROSS-MARKET ALIGNMENT" in l), "")
             check(f"{_a} recovery block states the cross-market alignment convention",
-                  bool(_al) and "PRIOR day" in _al)
+                  bool(_al) and "PRIOR" in _al)
+            # the directive must SUPPRESS the comparison, not invite it: the first live KOSPI draft
+            # failed fidelity because an unconditional statement of the convention prompted a
+            # trading-hours sentence the single-market piece never needed.
+            check(f"{_a} alignment directive suppresses an uninvited cross-market aside",
+                  bool(_al) and "none should be invented" in _al)
             check(f"{_a} alignment directive stays digit-free (df6ab61 law)",
                   bool(_al) and not any(c.isdigit() for c in _al))
             check(f"{_a} block never leaks the raw anchor id into prose",
