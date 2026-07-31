@@ -195,6 +195,32 @@ def main():
         check("event block leads with folklore-as-foil, labelled",
               "THE TENSION" in _evb and "folklore" in _evb.lower())
 
+        # --- INTERNATIONAL ANCHORS (2026-07-30) -----------------------------------------------
+        # Two conventions were settled by measurement and cost real work to settle; a silent drop
+        # would leave a number that reads like the others but means something else. Both are
+        # asserted STRUCTURALLY (present in the rendered block), never left to the drafter.
+        from content_agent.fidelity import _ANCHOR_LEAK_RX as _akrx0
+        for _a, _mkt in (("KOSPI", "Korea"), ("NIKKEI", "Japan"), ("TWII", "Taiwan")):
+            _sid = f"recovery:ANCHOR_{_a}"
+            _ib = evidence_for(_sid)["evidence"]
+            check(f"{_a} recovery block states the LOCAL-CURRENCY basis",
+                  "LOCAL-CURRENCY" in _ib)
+            # the convention is carried in PROSE, not as "US[D-1]": it is a directive line, and the
+            # df6ab61 law keeps directives digit-free so a mandated figure cannot be recited as data.
+            _al = next((l for l in _ib.splitlines() if "CROSS-MARKET ALIGNMENT" in l), "")
+            check(f"{_a} recovery block states the cross-market alignment convention",
+                  bool(_al) and "PRIOR day" in _al)
+            check(f"{_a} alignment directive stays digit-free (df6ab61 law)",
+                  bool(_al) and not any(c.isdigit() for c in _al))
+            check(f"{_a} block never leaks the raw anchor id into prose",
+                  not list(_akrx0.finditer(_ib)))
+        check("international anchors are draftable and reach the picker",
+              all(is_draftable(f"recovery:ANCHOR_{a}") and f"recovery:ANCHOR_{a}" in _lib
+                  for a in ("KOSPI", "NIKKEI", "TWII")))
+        # the live KOSPI drawdown is unresolved; CENSORED must be structural, not drafter-authored
+        check("KOSPI block carries CENSORED for the still-underwater drawdown",
+              "CENSORED" in evidence_for("recovery:ANCHOR_KOSPI")["evidence"])
+
     # --- EPISODE-KEY EMISSION AUDIT (2026-07-29): every rendered evidence block, all builders ------
     # The A/B measured every model copying the evidence's bare `covid_2020` into prose (pair shape
     # 0/6 across five arms). The fix is uniform quoting via _epq at EVERY emission site; this scan
@@ -208,6 +234,7 @@ def main():
         "pair (zero-anchor tension)": evidence_for("pair:ANCHOR_BTC|ANCHOR_GOLD")["evidence"],
         "recovery (outlier tension + notable rows)": evidence_for("recovery:ANCHOR_XLE")["evidence"],
         "event (folklore lead)": evidence_for("event:midterm_election")["evidence"],
+        "recovery (international / censored)": evidence_for("recovery:ANCHOR_KOSPI")["evidence"],
     }
     for _name, _blk in _blocks.items():
         _bare = sorted({m.group(0) for m in _ekrx.finditer(_blk)})
