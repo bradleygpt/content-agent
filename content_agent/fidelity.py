@@ -45,7 +45,14 @@ _WORD_NUMS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "s
 _UNIT_RX = [
     ("pct", r"%|percent(?:age)?(?:\s+points?)?|per\s+cent|\bpps?\b|\bbps\b"),
     ("month", r"months?\b|mo\b"),
-    ("week", r"weeks?\b|wks?\b"),
+    # "w" joined 2026-07-30, for symmetry with "mo" one line above. The recovery evidence renders short
+    # spans as "1w" ("range 1w-67.2mo"), so the months side of that very range bound and the weeks side
+    # did not — and every draft that expanded it into "1 week" hard-failed UNIT-MISMATCH. Measured on the
+    # live KOSPI piece: "1 week" failed all four attempts, and 20 distinct week-form range strings sit
+    # across the anchors, so this blocked the recovery class generally, not one study. Alternation is
+    # left-to-right and "week"/"wk" are listed first, so the bare-w branch only ever catches the "1w"
+    # form; \b keeps it off any word merely starting with w.
+    ("week", r"weeks?\b|wks?\b|w\b"),
     ("day", r"days?\b"),
     ("year", r"years?\b|yrs?\b"),
     # "session" is its OWN unit, deliberately NOT folded into count. A trading session is not a calendar

@@ -47,7 +47,9 @@ FLAGSHIP_TASK = """Write a flagship post in GitHub-flavored markdown.
 - SPECIFICALLY FORBIDDEN (these fail the fidelity check): writing an evidence figure as a WORD-NUMBER or a
   rounded form — "ten months", "more than 10 months", "about a month", "one month prior" (when the
   evidence says 10.2mo / 1.5mo) — every evidence figure is quoted as VERBATIM DIGITS with its exact unit
-  ("10.2 months", "1.5 months"); DERIVED COUNTS the evidence never prints ("one event did not recover"
+  ("10.2 months", "1.5 months"); CONVERTED UNITS — a figure printed in months stays in months, never
+  becomes years ("five and a half years" for 67.2mo), and a figure in weeks stays in weeks; DERIVED
+  COUNTS the evidence never prints ("one event did not recover"
   when it says 0 never recovered); and computed spreads or differences between figures — make comparisons
   in WORDS with no number ("the deepest took roughly three times as long") or by quoting both verbatim
   figures side by side.
