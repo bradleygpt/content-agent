@@ -495,12 +495,22 @@ def main():
     check("crossing session: '## Full recovery' present is NOT extra (evidence carries SECTION 4)",
           not any(f["type"] == "EXTRA-SECTION" for f in comp(_hdr)))
 
-    # --- SCOPING: non-digest studies are untouched ------------------------------------------------
-    check("median depth on a RECOVERY study -> rule does not fire (different class)",
-          not check_median_discipline("The median depth was -19.3% across the seven drawdowns.",
-                                      RECOVERY_EV))
-    check("average on a NON-digest study -> rule does not fire",
-          not check_median_discipline("The average drawdown was deep.", RECOVERY_EV))
+    # --- SCOPING, INVERTED 2026-07-31 --------------------------------------------------------------
+    # These three checks asserted that median-discipline and word-number DO NOT fire outside the
+    # digest. That scoping was the defect, not the design: a recovery median without its N is exactly
+    # the misleading statistic the publication exists to refuse, and the study classes need the rule
+    # more than the digest does. The exemption-shield audit found it; the assertions are inverted
+    # rather than deleted so the old behaviour cannot quietly return.
+    check("median depth on a RECOVERY study now FIRES (N present, range missing)",
+          any(f["type"] == "MEDIAN-WITHOUT-N" for f in
+              check_median_discipline("The median depth was -19.3% across the seven drawdowns.",
+                                      RECOVERY_EV)))
+    check("median depth on a RECOVERY study with N AND range stays silent",
+          not check_median_discipline("The median depth was -19.3% across the seven drawdowns, "
+                                      "ranging from -8.1% to -41.0%.", RECOVERY_EV))
+    check("average on a NON-digest study now FIRES",
+          any(f["type"] == "BARE-AVERAGE" for f in
+              check_median_discipline("The average drawdown was deep.", RECOVERY_EV)))
 
     # --- NOT-A-SIGNAL as a first-class label ------------------------------------------------------
     r = run_fidelity("Median 0.07%, positive in 25 of 46 instances (hit rate 0.543), N=46, range "
@@ -694,8 +704,11 @@ REQUIRED HONESTY LABELS (carry into the answer):
               for f in check_word_numbers("Over the next twenty sessions it recovered.", ANALOG_EV)))
     check("small-word idioms pass ('one of these', 'two crises')",
           not check_word_numbers("One of these was 2008; the two crises cluster.", ANALOG_EV))
-    check("non-digest class untouched ('twenty years of data' in a study)",
-          not check_word_numbers("The study spans twenty years of data.", RECOVERY_EV))
+    check("non-digest class now CHECKED too ('twenty years of data' in a study)",
+          any(f["type"] == "WORD-NUMBER"
+              for f in check_word_numbers("The study spans twenty years of data.", RECOVERY_EV)))
+    check("small-word idioms still pass in a non-digest study",
+          not check_word_numbers("One of these was 2008; the two crises cluster.", RECOVERY_EV))
     # heading requirement rides the SECTION 2A marker, evidence-driven like sections 3/4
     _no_head = "## The mark\nx.\n## The context\ny."
     check("evidence carries SECTION 2A + draft lacks the heading -> MISSING-SECTION",

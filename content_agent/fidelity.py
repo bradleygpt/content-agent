@@ -367,8 +367,17 @@ _DURATION_RX = re.compile(r"\bsessions?\b|\bdays?\b|\bmonths?\b|\bweeks?\b|\byea
 _RANGE_RX = re.compile(r"\brang\w+\b|\brange\b|\bfrom\s+[\d.]+\s+to\s+[\d.]+|[\d.]+\s+to\s+[\d.]+", re.I)
 
 
+# A median DEPTH is not a median return. Every drawdown is negative by construction, so "positive in
+# 3 of 5" is not a statistic that exists for it — demanding a hit rate there is the same category
+# error the duration branch already avoids ("a hit rate does not exist for a duration"). Found
+# 2026-07-31: ungating the rule made it fire on nine published sentences of the form "a median
+# drawdown depth of -15.7%", every one of them honest. Depth carries N and range, like duration.
+_DEPTH_RX = re.compile(r"\bdrawdowns?\b|\bdepths?\b|\bdeclines?\b|\bfalls?\b|\btroughs?\b|"
+                       r"\bpeak-to-trough\b|\bselloffs?\b", re.I)
+
+
 def _median_kind(sent: str, pos: int) -> str:
-    """'duration' | 'return' — what the median at `pos` measures, from the words riding with it."""
+    """'duration' | 'depth' | 'return' — what the median at `pos` measures, from the words with it."""
     window = sent[pos:pos + 70]
     for sep in (";", "]", "\n"):
         cut = window.find(sep)
@@ -376,6 +385,11 @@ def _median_kind(sent: str, pos: int) -> str:
             window = window[:cut]
     if _DURATION_RX.search(window) and "%" not in window:
         return "duration"
+    # look BEHIND as well: "median drawdown depth of -15.7%" puts the noun before the number, and
+    # "the median depth of these drawdowns was -4.2%" puts it after. Both are the same statistic.
+    behind = sent[max(0, pos - 40):pos]
+    if _DEPTH_RX.search(window) or _DEPTH_RX.search(behind):
+        return "depth"
     return "return"
 
 
@@ -406,10 +420,20 @@ _N_RX = re.compile(r"\bN\s*=\s*\d+"
                    # "from" is deliberately ABSENT: "from 2 to 2544 sessions" is a RANGE, and
                    # admitting it would let a sentence with no N at all pass (a false negative
                    # traded for the false positive — caught by testing both directions).
-                   r"|\b(?:over|across|among)\s+(?:all\s+)?\d+\s+(?:\w+\s+){0,2}"
-                   r"(?:instances?|episodes?|samples?|cases?|drawdowns?|sessions?|days?)\b"
+                   # "events" was ABSENT — the single most common count noun in an event study, so
+                   # "Across 166 events, the median recovery is 0.5 months" read as N-missing. Found
+                   # 2026-07-31 when the rule was ungated from digest-class and lit up nearly every
+                   # honest event-study sentence. Ungating a rule exposes its recall gaps.
+                   # WORD-NUMBERS one..ten count too: "across these five events" is correct writing
+                   # (the WORD-NUMBER rule only forbids eleven and above), and demanding digits there
+                   # would fail the house style for the small-N pieces where N matters most.
+                   r"|\b(?:over|across|among)\s+(?:all\s+|these\s+|the\s+){0,2}"
+                   r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,2}"
+                   r"(?:instances?|episodes?|events?|samples?|cases?|drawdowns?|sessions?|days?)\b"
                    # a bare count noun, but NOT sessions/days: "2544 sessions" is a duration.
-                   r"|\b\d+\s+(?:\w+\s+){0,2}(?:instances?|episodes?|samples?|cases?|drawdowns?)\b",
+                   r"|\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,2}"
+                   r"(?:instances?|episodes?|events?|samples?|cases?|drawdowns?|"
+                   r"midterms?|elections?|meetings?|cycles?|observations?)\b",
                    re.I)
 # "average"/"mean" as a statistic. Excludes idioms that are not the statistic ("on average" alone still
 # counts — it is exactly the hedge this class must not use; "meanwhile"/"meaningful" are word-boundary
@@ -586,7 +610,15 @@ _HEDGED_CAUSE_RX = re.compile(
     r"\b(?:might|may|could|would|can|possibly|perhaps|potentially|likely|perhaps|seem\w*|appear\w*)\b"
     r"[^.]{0,40}\b(?:caus\w+|driv\w+|trigger\w*|lead\s+to|due\s+to|explain\w*|result\w*)", re.I)
 _DISCLAIM_CAUSE_RX = re.compile(
-    r"\bimpossible\s+to\b|\bcannot\s+be\s+(?:ascrib|attribut|determin|establish)\w*"
+    # ACTIVE forms joined 2026-07-31. The list held only PASSIVES ("cannot BE determined"), so the
+    # plainest honest sentence this publication can write — "we cannot say what drove this" — hard
+    # FAILED CAUSAL-CLAIM, punishing exactly the voice the rule exists to protect. Widening was
+    # previously unsafe because every widening adds shield surface; the preamble guard below closes
+    # that, so an active denial followed by named causes is still caught.
+    r"\b(?:can(?:not|'?t)|could\s*n[o']t|do(?:es)?\s+not|don'?t|doesn'?t|un(?:able|clear))\s+"
+    r"(?:to\s+)?(?:say|tell|know|determine|identify|isolate|disentangle|establish|attribute|ascribe)\b"
+    r"|\bwe\s+do\s+not\s+know\b|\bno\s+way\s+to\s+(?:say|tell|know|determine)\b"
+    r"|\bimpossible\s+to\b|\bcannot\s+be\s+(?:ascrib|attribut|determin|establish)\w*"
     r"|\bdoes\s+not\s+address\b|\bnot\s+a\s+simple\b|\bcoincidental\b|\bby\s+chance\b"
     r"|\bdue\s+to\s+chance\b|\bnot\s+captured\b|\bunique\s+(?:to|circumstances)\b"
     r"|\blimitations?\s+due\s+to\b|\bselection\s+bias\b|\bSMALL-N\b", re.I)
@@ -731,7 +763,17 @@ def check_instruction_recitation(draft: str, evidence: str) -> list[dict]:
 # yields" shares a sentence with the claim but not a clause, and must never itself fire the rule —
 # which is why bare "inversely" is deliberately NOT a direction idiom here.
 _FLIP_NOTE_RX = re.compile(r"sign-FLIP", re.I)
+# The clause used to be required to contain the literal word "price", which made the rule fire on
+# PHRASING LUCK: "the two move in opposite directions in price terms" fired, "the two move in opposite
+# directions" and "bonds and equities move in opposite directions" did not — same claim, same error.
+# Direction-of-claim is the one semantic error established as deterministically decidable and it
+# reached review twice before this rule existed, so it may not depend on a word the draft happens to
+# use. The clause now qualifies if it names PRICES **or** either side of the pair.
 _PRICE_RX = re.compile(r"\bprices?\b", re.I)
+_ASSET_SIDE_RX = re.compile(
+    r"\bprices?\b|\byields?\b|\bbonds?\b|\btreasur\w+\b|\bequit\w+\b|\bstocks?\b|\bshares?\b|"
+    r"\bgold\b|\boil\b|\bcrude\b|\bbitcoin\b|\bBTC\b|\bdollar\b|\bthe\s+two\b|\bboth\b|"
+    r"\b(?:SPY|SMH|XL[A-Z]|QQQ|TLT|IEF|DXY|VIX)\b", re.I)
 _DIR_OPP_RX = re.compile(r"opposite\s+direction|opposing\s+direction|in\s+opposition|"
                          r"inverse\s+direction", re.I)
 _DIR_SAME_RX = re.compile(r"same\s+direction|in\s+tandem|mov(?:ed|ing|e)\s+together|"
@@ -740,17 +782,37 @@ _CORR_NEG_RX = re.compile(r"negative\s+corr|corr\w*[^.;]{0,40}\bnegative\b|-0?\.
 _CORR_POS_RX = re.compile(r"positive\s+corr|corr\w*[^.;]{0,40}\bpositive\b", re.I)
 
 
+_DIR_NEG_RX = re.compile(r"\b(?:not|never|rather\s+than|instead\s+of|no\s+longer|hardly|"
+                         r"far\s+from)\s*$", re.I)
+
+
+def _dir_cue_negated(clause: str, cue_rx: re.Pattern) -> bool:
+    """Is this direction cue immediately negated ('...not in tandem', '...rather than together')?"""
+    m = cue_rx.search(clause)
+    return bool(m and _DIR_NEG_RX.search(clause[max(0, m.start() - 18):m.start()]))
+
+
 def check_sign_flip_inversion(draft: str, evidence: str) -> list[dict]:
     """-> list of failures. Only when the evidence carries the sign-FLIP note."""
     if not _FLIP_NOTE_RX.search(evidence):
         return []
     out = []
     for clause in re.split(r"[;\n]|(?<=[.!?])\s+", draft):
-        if not _PRICE_RX.search(clause):
+        if not _ASSET_SIDE_RX.search(clause):
             continue
         opp, same = bool(_DIR_OPP_RX.search(clause)), bool(_DIR_SAME_RX.search(clause))
-        if opp == same:                       # neither claim, or both (unparseable) -> not decidable
+        if not opp and not same:              # no direction claim at all -> nothing to decide
             continue
+        if opp and same:
+            # BOTH cues present. This was a blanket skip labelled "unparseable", which is the
+            # disclaimer-shield shape again: "prices move in opposite directions, not in tandem"
+            # silenced the check by adding the second cue. A NEGATED cue is not a competing claim —
+            # strip the negated one and re-read. Only if BOTH survive un-negated is the clause
+            # genuinely undecidable, and that is now the narrow skip rather than the broad one.
+            opp = opp and not _dir_cue_negated(clause, _DIR_OPP_RX)
+            same = same and not _dir_cue_negated(clause, _DIR_SAME_RX)
+            if opp == same:
+                continue
         neg, pos = bool(_CORR_NEG_RX.search(clause)), bool(_CORR_POS_RX.search(clause))
         if neg == pos:                        # no corr-sign cue in the SAME clause -> not decidable
             continue
@@ -833,9 +895,11 @@ _BIG_WORD_NUM_RX = re.compile(
 
 
 def check_word_numbers(draft: str, evidence: str) -> list[dict]:
-    """-> list of failures. Digest-class drafts may not spell out numbers eleven and above."""
-    if not _digest_class(evidence):
-        return []
+    """-> list of failures. NO draft may spell out numbers eleven and above.
+
+    Ungated from digest-class 2026-07-31 alongside check_median_discipline. A spelled-out number is a
+    conversion or an invention whichever class it appears in — the live KOSPI draft wrote "Eleven such
+    drawdowns have occurred" where the evidence prints 11, and nothing caught it."""
     out = []
     for m in _BIG_WORD_NUM_RX.finditer(draft):
         ctx = draft[max(0, m.start() - 40):m.end() + 40].replace("\n", " ")
@@ -849,9 +913,14 @@ def check_word_numbers(draft: str, evidence: str) -> list[dict]:
 def check_median_discipline(draft: str, evidence: str) -> list[dict]:
     """-> list of failures. Sentence-scoped: the hit rate and N must sit in the SAME sentence as the
     median, because a reader takes the number from the sentence they are reading, not from a paragraph
-    three sentences down."""
-    if not _digest_class(evidence):
-        return []
+    three sentences down.
+
+    ALL CLASSES since 2026-07-31. This was digest-gated, and recovery/pair/event evidence is not
+    digest-class — so the module's signature rule had never run on a study piece. A recovery median
+    without its N ("the median recovery stands at 7.2 months", N unstated) is precisely the misleading
+    statistic this publication exists to refuse, and the study classes need the rule MORE than the
+    digest does, not less. Third instance of the digest gate acting as a shield; CAUSAL-CLAIM was
+    ungated for the same reason ("it passed for months because the rule was digest-scoped")."""
     out = []
     for sent in re.split(r"(?<=[.!?])\s+", draft):
         s = sent.strip()
@@ -860,12 +929,12 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
         if _median_is_reported(s):
             m = re.search(r"\bmedian\b", s, re.I)
             kind = _median_kind(s, m.end()) if m else "return"
-            if kind == "duration":
+            if kind in ("duration", "depth"):
                 if not (_N_RX.search(s) and _RANGE_RX.search(s)):
-                    out.append({"type": "MEDIAN-WITHOUT-N", "token": "median (duration)",
-                                "detail": "a median recovery time must carry its N and its range in "
-                                          "the same sentence (a hit rate does not exist for a "
-                                          f"duration). sentence: {s[:180]}"})
+                    out.append({"type": "MEDIAN-WITHOUT-N", "token": f"median ({kind})",
+                                "detail": f"a median {kind} must carry its N and its range in "
+                                          f"the same sentence (a hit rate does not exist for a "
+                                          f"{kind}). sentence: {s[:180]}"})
             elif not (_HITRATE_RX.search(s) and _N_RX.search(s)):
                 out.append({"type": "MEDIAN-WITHOUT-N", "token": "median (return)",
                             "detail": "a median return must carry its hit rate AND N in the same "
@@ -977,8 +1046,14 @@ def run_fidelity(draft: str, evidence: str) -> dict:
     for name, claim_rx in LABEL_CLAIMS.items():
         if labels[name]["required"]:
             continue
-        m = re.search(claim_rx, draft, re.I)
-        if not m or _label_mention_is_negated(draft, m):
+        # EVERY mention, not just the first. Checking only the first is the disclaimer-shield shape
+        # in a third rule: "this is not a SURVIVORSHIP problem; SURVIVORSHIP bias makes the number
+        # understated" negated the opening mention and asserted freely afterwards, and the whole
+        # label was exempted on the strength of the denial. The label is invented if ANY mention
+        # asserts it; a draft that only ever denies it keeps the exemption it is due.
+        m = next((mm for mm in re.finditer(claim_rx, draft, re.I)
+                  if not _label_mention_is_negated(draft, mm)), None)
+        if not m:
             continue
         labels[name]["invented"] = True
         failures.append({"type": "INVENTED-LABEL", "token": name,

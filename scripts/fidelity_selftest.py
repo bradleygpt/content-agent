@@ -39,7 +39,15 @@ REQUIRED HONESTY LABELS (carry into the answer):
   - FORWARD-LOOKING: any read-through to a future occurrence is an inference, not a prediction."""
 
 # A compliant core draft (verbatim digits, both required labels) used as the base for several cases.
-CLEAN_CORE = """Across the five measured midterms the median depth was -15.7% and the median recovery 3.6 months.
+# 2026-07-31: the first sentence gained its RANGES. check_median_discipline was digest-gated until
+# now, so this "clean control" had never actually been subject to it — it is not that the sentence
+# passed the rule, it is that the rule never ran on a study-class fixture. Ungating it made the
+# omission visible. The fixture is updated to meet the standard rather than the standard relaxed to
+# meet the fixture: a median depth and a median recovery each carry N and range in their own sentence,
+# which is exactly what the class now demands of a real draft.
+CLEAN_CORE = """Across the five measured midterms the median depth was -15.7%, ranging from -7.3% to
+-24.5%; across those same five midterms the median recovery was 3.6 months, with a range of 0.5 to
+14.0 months.
 These are 5 anecdotes with a pattern, a handful of cases, not a distribution. In 2022 the drawdown began
 10.2 months before the event and took 14.0 months to recover; in 2014 recovery took 0.5 months.
 History here is an inference from these cases — it cannot predict the next occurrence."""
@@ -141,7 +149,16 @@ def main():
           any(f["token"].startswith("ten") for f in rep["failures"] if f["type"] == "NO-MATCH"))
     rep = run_fidelity(CLEAN_CORE.replace("In 2022 the drawdown began\n10.2 months",
                                           "In 2022 the drawdown began\nfourteen months"), MIDTERM_EV)
-    check("D4 word-number that matches evidence (fourteen -> 14.0 months) still binds", rep["passed"])
+    # D4 tests the BINDER, not the whole report. Its old assertion was rep["passed"], which stopped
+    # being the right question on 2026-07-31: check_word_numbers is no longer digest-gated, so
+    # spelling out a number eleven-and-above now fails in EVERY class and this draft correctly does
+    # not pass. What must still hold is that "fourteen" BINDS to the evidence's 14.0 — otherwise an
+    # invented word-number would go unextracted and sail through, which is the bug D4 was written for.
+    check("D4 word-number that matches evidence (fourteen -> 14.0 months) still binds",
+          not any(f["type"] == "NO-MATCH" and "fourteen" in f["token"] for f in rep["failures"]))
+    check("D4b ... and the spelled-out form is now itself a WORD-NUMBER failure (ungated)",
+          any(f["type"] == "WORD-NUMBER" and "fourteen" in f["token"].lower()
+              for f in rep["failures"]))
 
     # --- THE DISCLAIMER SHIELD (2026-07-31) ---------------------------------------------------------
     # Every string below is VERBATIM from the real queue, not invented for the test. Two of the three
