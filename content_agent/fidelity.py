@@ -592,11 +592,62 @@ _DISCLAIM_CAUSE_RX = re.compile(
     r"|\blimitations?\s+due\s+to\b|\bselection\s+bias\b|\bSMALL-N\b", re.I)
 
 
+# THE DISCLAIMER SHIELD (2026-07-31). _CAUSE_DENIED_RX exempted a sentence on the mere PRESENCE of
+# denial vocabulary anywhere in it, so a denial that merely PRECEDES named causes bought the whole
+# sentence an exemption. It is not a denial then; it is a preamble. Two real instances, one of them
+# ALREADY PUBLISHED:
+#   "...attributable to factors beyond the scope of this measurement: idiosyncratic company events,
+#    changes in investor sentiment, global economic shocks, and shifts in macroeconomic policy."
+#   "...driven by factors beyond simple risk-on/risk-off sentiment; company-specific events, broader
+#    macroeconomic shifts..., and unexpected geopolitical developments all play a role in shaping
+#    sector performance."           <- published, and the exact claim the rule exists to forbid
+# The discriminator is whether the sentence goes on to ENUMERATE specific causes after the denial. A
+# genuine disclaimer names no causes — that is what makes it a disclaimer:
+#   "markets are complex systems driven by myriad factors."                          still exempt
+#   "...driven by factors outside this analysis."                                    still exempt
+#   "might be entirely coincidental or driven by factors not captured..."            still exempt
+# An enumeration is an introducer (colon/semicolon/dash, "such as", "including", "namely") followed by
+# a comma, OR two commas plus an "and" — the ordinary shapes of an English list. Deliberately STRICT:
+# a false positive costs one redraft, a false negative publishes invented causation, and the second is
+# the failure this module exists to prevent.
+_CAUSE_ENUM_RX = re.compile(
+    r"(?:[:;]|\s[—–-]\s|\bsuch\s+as\b|\bincluding\b|\bnamely\b)[^.]*?,"
+    r"|,[^.]*?,[^.]*?\band\b", re.I)
+
+
+# A list after a denial is not always a list of CAUSES. The house voice enumerates its own LIMITATIONS
+# constantly — "limitations due to the SMALL-N size, SURVIVORSHIP bias, and inherent REGIME DEPENDENCE"
+# is the honest shape, and the first cut of this guard flagged it. Naming what a measurement cannot
+# support is the opposite of asserting a cause, so a tail made of honesty labels and limitation
+# vocabulary keeps its exemption. Caught by running the guard over the full queue before shipping it.
+_LIMITATION_LIST_RX = re.compile(
+    r"\bSMALL-N\b|\bSURVIVORSHIP\b|\bSURVIVOR-SELECTED\b|\bCENSORED\b|\bSECTOR-PROXY\b|"
+    r"\bINDEX-MEASURED\b|\bSINGLE-INSTANCE\b|\bNOT-A-(?:SIGNAL|RANKING)\b|\bFORWARD-LOOKING\b|"
+    r"\bregime\s+dependen\w*|\bselection\s+bias\b|\bsampl\w+\s+bias\b|\blimitations?\b|"
+    r"\bsample\s+size\b|\bobservation\s+window\b", re.I)
+
+
+def _denial_is_preamble(sentence: str, denial: "re.Match") -> bool:
+    """True when the 'denial' is followed, in the same sentence, by an enumeration of named CAUSES."""
+    tail = sentence[denial.end():]
+    if _LIMITATION_LIST_RX.search(tail):
+        return False                      # a list of limitations, not of causes — still a disclaimer
+    return bool(_CAUSE_ENUM_RX.search(tail))
+
+
 def _causal_is_asserted(sentence: str) -> bool:
     """Does THIS sentence ASSERT a cause, rather than quote, hedge, deny, or describe a data limit?"""
+    # BOTH denial-family exemptions get the preamble guard, not just the one the live bypass came
+    # through. _DISCLAIM_CAUSE_RX is the same shape ("impossible to", "cannot be ascribed", "not
+    # captured") and would shield the identical construction through the other door; fixing only the
+    # observed instance would leave a known hole. The guard is strictly-stricter, so it cannot create
+    # a new false negative. FOLKLORE/METHOD/HEDGED are different shapes and are untouched here — see
+    # the exemption-shield audit for their separate assessment.
+    denied = _CAUSE_DENIED_RX.search(sentence) or _DISCLAIM_CAUSE_RX.search(sentence)
+    if denied and _denial_is_preamble(sentence, denied):
+        return True                       # the denial was a preamble; the sentence asserts after it
     return not (_FOLKLORE_RX.search(sentence) or _METHOD_CAUSE_RX.search(sentence)
-                or _CAUSE_DENIED_RX.search(sentence) or _HEDGED_CAUSE_RX.search(sentence)
-                or _DISCLAIM_CAUSE_RX.search(sentence))
+                or denied or _HEDGED_CAUSE_RX.search(sentence))
 
 
 def check_causal_claims(draft: str, evidence: str) -> list[dict]:

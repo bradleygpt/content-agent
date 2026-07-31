@@ -143,6 +143,48 @@ def main():
                                           "In 2022 the drawdown began\nfourteen months"), MIDTERM_EV)
     check("D4 word-number that matches evidence (fourteen -> 14.0 months) still binds", rep["passed"])
 
+    # --- THE DISCLAIMER SHIELD (2026-07-31) ---------------------------------------------------------
+    # Every string below is VERBATIM from the real queue, not invented for the test. Two of the three
+    # preambles were already PUBLISHED when the bypass was found, which is why they are pinned here:
+    # the rule matched the causal vocabulary in all three and was talked out of firing by disclaimer
+    # words sitting earlier in the same sentence.
+    from content_agent.fidelity import _causal_is_asserted as _asserted
+    PREAMBLES = [   # a denial that precedes named causes is not a denial — these MUST be caught
+        ("KOSPI: denial, colon, four named causes",
+         "The observed dispersion is likely attributable to factors beyond the scope of this "
+         "measurement: idiosyncratic company events impacting KOSPI-listed firms, changes in investor "
+         "sentiment towards Korean equities, global economic shocks affecting regional markets, and "
+         "shifts in macroeconomic policy influencing capital flows."),
+        ("PUBLISHED election-sector: denial, semicolon, three named causes",
+         "The measured outcomes are driven by factors beyond simple risk-on/risk-off sentiment; "
+         "company-specific events, broader macroeconomic shifts not directly tied to the election "
+         "outcome, and unexpected geopolitical developments all play a role in shaping sector "
+         "performance."),
+        ("PUBLISHED FOMC: 'unique circumstances', dash, three named causes",
+         "These extremes are driven by unique circumstances surrounding each FOMC meeting - shifts in "
+         "monetary policy, unexpected economic data releases, or broader market sentiment."),
+    ]
+    DISCLAIMERS = [  # genuine disclaimers name NO causes — these MUST stay exempt
+        ("myriad factors, no enumeration",
+         "Primarily, it reminds us that markets are complex systems driven by myriad factors."),
+        ("numerous factors, no enumeration",
+         "While this measurement provides a historical snapshot, it is crucial to remember that "
+         "markets are complex adaptive systems driven by numerous factors."),
+        ("factors not captured, no enumeration",
+         "The pattern observed here might be entirely coincidental or driven by factors not captured "
+         "within the relational engine's event-conditioned measurement."),
+        ("factors outside this analysis, no enumeration",
+         "The relationship is regime-contingent and prone to shifts driven by factors outside this "
+         "analysis."),
+        ("a list of LIMITATIONS is not a list of causes",
+         "It highlights recurring patterns but also underscores their limitations due to the SMALL-N "
+         "size, *SURVIVORSHIP* bias, and inherent *REGIME DEPENDENCE*."),
+    ]
+    for name, s in PREAMBLES:
+        check(f"disclaimer-shield: CAUGHT - {name}", _asserted(s))
+    for name, s in DISCLAIMERS:
+        check(f"disclaimer-shield: still exempt - {name}", not _asserted(s))
+
     print("FIDELITY SELF-TEST (hermetic; real production texts embedded; no GPU/network)\n")
     for good, name in checks:
         print(f"  {'OK ' if good else 'XX '} {name}")
