@@ -28,6 +28,11 @@ A WORLD OF CONFIDENT NOISE. Non-negotiable rules:
   the product, not fine print. Never drop a caveat for punch. The mirror rule is equally hard: NEVER
   assert a label or caveat the evidence does NOT carry — claiming SURVIVORSHIP filtering that never
   happened, or a CENSORED case that doesn't exist, is a false claim exactly like a false number.
+- A LABEL NAMES A CONDITION; IT IS NOT A TERM OF ART THE READER KNOWS. Name it, then say what it means
+  in plain words — never use it as though it were established vocabulary. "this is noted under CENSORED
+  conditions" and "the CENSORED drawdown" are the failure: they sound like a discipline the reader is
+  expected to have studied. Write "one drawdown has not recovered, so its recovery time is unknown and
+  is not averaged in (CENSORED)" — the plain statement first, the label as a tag on the end.
 - NEVER make a call, prediction, or recommendation. No "expect", no "will", no positioning advice. Close
   with explicit deferral: what the measurement can and cannot say about the future.
 - Structure flagship pieces as the weighted two-sided case: what the measured pattern shows, AND the

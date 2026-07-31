@@ -226,6 +226,25 @@ def main():
         check("KOSPI block carries CENSORED for the still-underwater drawdown",
               "CENSORED" in evidence_for("recovery:ANCHOR_KOSPI")["evidence"])
 
+        # --- PROSE DEFECTS FOUND IN THE PUBLISHED KOSPI TEXT (2026-07-31) ----------------------
+        # Both were EVIDENCE-SHAPE, not drafting: the block handed the model machine artefacts and
+        # the model faithfully copied them. "1 episode(s)" reached a sentence with its plural marker
+        # intact, and the readable episode names still dragged their quoted keys along, so the
+        # display-name work stopped the BARE key leaking and not the key itself.
+        import re as _re
+        for _sid in ("recovery:ANCHOR_KOSPI", "recovery:ANCHOR_XLE", "pair:ANCHOR_BTC|ANCHOR_GOLD",
+                     "event:midterm_election"):
+            _b = evidence_for(_sid)["evidence"]
+            _pl = _re.findall(r"\w+\(s\)", _b)
+            check(f"no '(s)' plural marker in {_sid}" + (f" — FOUND {_pl}" if _pl else ""), not _pl)
+            _qk = _re.findall(r"\(\"[a-z0-9_]+\"\)", _b)
+            check(f"no quoted episode key reaches prose in {_sid}"
+                  + (f" — FOUND {_qk}" if _qk else ""), not _qk)
+        check("episode names are still READABLE after dropping the key",
+              "the 2008 crash" in evidence_for("recovery:ANCHOR_KOSPI")["evidence"])
+        check("singular count agrees ('1 episode', never '1 episodes')",
+              "1 episode " in evidence_for("recovery:ANCHOR_KOSPI")["evidence"])
+
     # --- EPISODE-KEY EMISSION AUDIT (2026-07-29): every rendered evidence block, all builders ------
     # The A/B measured every model copying the evidence's bare `covid_2020` into prose (pair shape
     # 0/6 across five arms). The fix is uniform quoting via _epq at EVERY emission site; this scan
