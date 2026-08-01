@@ -253,6 +253,26 @@ def main():
         check(f"_is_evidence_text does NOT shield a violation wrapped in quoted evidence ({_sid})",
               not _is_evidence_text(_sneak, _m, _ev))
 
+    # --- RECOVERY-GUARANTEE (2026-08-01): survivorship as a mechanical check ---------------------
+    # The resilience list's 100% recovery rate is selection (a market that did not recover has no
+    # series), and "markets always recover" is the sentence that study tempts. A checker rule, not a
+    # task rule — the KOSPI attempts established the model violates present unambiguous instructions.
+    from content_agent.fidelity import check_recovery_guarantee as _crg
+    for _s in ["History shows that markets always recover.",
+               "No bear market has ever been permanent.",
+               "Recovery is inevitable given enough time.",
+               "The folklore says markets always recover — and this data proves it right.",
+               "Every crash on this list was fully regained."]:
+        check(f"RECOVERY-GUARANTEE fires: '{_s[:52]}'", bool(_crg(_s, "EV")))
+    for _s in ["Every event here is one this market recovered from, because a market that did not "
+               "recover has no series to measure.",
+               "The 100% recovery rate of this list is a selection effect, not a finding.",
+               "This does not mean markets always recover — the sample is selected by survival.",
+               "The folklore that markets always recover is exactly what this list cannot support.",
+               "All 11 KOSPI drawdowns since 2004 recovered except one, which remains underwater.",
+               "The median recovery was 7.2 months across the ten recovered episodes."]:
+        check(f"RECOVERY-GUARANTEE exempt: '{_s[:52]}'", not _crg(_s, "EV"))
+
     print("FIDELITY SELF-TEST (hermetic; real production texts embedded; no GPU/network)\n")
     for good, name in checks:
         print(f"  {'OK ' if good else 'XX '} {name}")

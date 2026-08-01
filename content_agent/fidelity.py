@@ -700,6 +700,60 @@ def _causal_is_asserted(sentence: str) -> bool:
                 or denied or _HEDGED_CAUSE_RX.search(sentence))
 
 
+# --- RECOVERY GUARANTEE (resilience class, 2026-08-01; ALL classes by the gating lesson) ------------
+# The resilience study measures a pre-registered list of events this market recovered from — and a
+# market that did NOT recover has no series to measure, so the list's 100% recovery rate is selection,
+# not evidence. "Markets always recover" is the sentence that study tempts every draft into writing,
+# and the KOSPI attempts established that the model violates present, unambiguous task instructions —
+# so this is a CHECKER rule, not a task rule. All classes, not gated on the resilience label: a
+# universal-recovery guarantee is a FORWARD-LOOKING promise no evidence block anywhere supports.
+_RECOVERY_SUBJ = r"(?:the\s+)?(?:markets?|stocks?|equit(?:y|ies)|indexes|indices|the\s+S&P(?:\s*500)?)"
+_RECOVERY_VERB = r"(?:recover\w*|rebound\w*|come\s+back|came\s+back|bounce\w*\s+back|regain\w*|reach\w*\s+new\s+highs?)"
+_RECOVERY_GUARANTEE_RX = re.compile(
+    rf"{_RECOVERY_SUBJ}\s+(?:(?:has|have|had)\s+)?(?:always|invariably|inevitably|ultimately\s+always|"
+    rf"eventually\s+always|without\s+fail)\s+(?:\w+\s+)?{_RECOVERY_VERB}"
+    rf"|{_RECOVERY_SUBJ}\s+(?:always|invariably|inevitably)\s+(?:\w+\s+)?{_RECOVERY_VERB}"
+    # "every drawdown/crash/decline (has been / is eventually) recovered/erased/regained"
+    rf"|\bevery\s+(?:\w+\s+)?(?:drawdowns?|crash(?:es)?|declines?|selloffs?|bear\s+markets?|correction?s?)\b"
+    rf"[^.]{{0,50}}\b(?:recover\w*|regain\w*|erased?|reclaim\w*|made\s+whole)"
+    # "no drawdown/bear market is/has been permanent"
+    rf"|\bno\s+(?:drawdown|bear\s+market|crash|decline|selloff)\s+(?:is|has\s+(?:ever\s+)?been|was)\s+permanent"
+    rf"|\b(?:recovery|a\s+rebound)\s+is\s+(?:always\s+)?(?:guaranteed|inevitable|certain|assured)\b", re.I)
+# THE HONEST DIRECTION: naming the selection is the entire point of the label, and denying the
+# guarantee is the house voice. Both exempt — with the shield closed: an exemption marker followed by
+# an ENDORSEMENT ("...and the data proves it") re-asserts the guarantee, and fires.
+_RECOVERY_SELECTION_RX = re.compile(
+    r"\bby\s+(?:selection|construction)\b|\bsurviv\w+|\bselection\s+effect\b|\bselected\b|"
+    r"\bno\s+series\s+to\s+measure\b|\bstill\s+exists?\b|\bdid\s+not\s+(?:survive|reopen|come\s+back)\b", re.I)
+_RECOVERY_DENIED_RX = re.compile(
+    r"\b(?:not|never|no)\b[^.]{0,40}\b(?:mean|imply|guarantee|prove|show|support|evidence|promise)\w*\b|"
+    r"\bcannot\s+(?:be\s+)?(?:conclude|support|guarantee|infer)\w*|\bis\s+not\s+(?:a\s+)?(?:finding|evidence|guarantee)\b|"
+    r"\bfolklore\b|\bnarrative\b|\bconventional\s+wisdom\b|\bthe\s+(?:story|myth|adage|saying)\b", re.I)
+_RECOVERY_ENDORSE_RX = re.compile(
+    r"\b(?:and|but|yet)\b[^.]{0,30}\b(?:prove[sd]?|confirm\w*|bear[s]?\s+(?:it|this|that)\s+out|"
+    r"borne\s+out|holds?\s+true|is\s+(?:right|correct|true)|the\s+data\s+agrees?)\b", re.I)
+
+
+def check_recovery_guarantee(draft: str, evidence: str) -> list[dict]:
+    """-> list of failures. A universal 'markets always recover' assertion is a false claim in every
+    class: measured history is a sample selected by survival, never a guarantee."""
+    out = []
+    for sent in re.split(r"(?<=[.!?])\s+", draft):
+        s = sent.strip()
+        m = _RECOVERY_GUARANTEE_RX.search(s)
+        if not m:
+            continue
+        exempt = _RECOVERY_SELECTION_RX.search(s) or _RECOVERY_DENIED_RX.search(s)
+        if exempt and not _RECOVERY_ENDORSE_RX.search(s[m.end():]):
+            continue                      # names the selection or denies the claim, and does not
+        out.append({"type": "RECOVERY-GUARANTEE", "token": m.group(0)[:60],
+                    "detail": "universal recovery asserted as a finding — the measured list is "
+                              "selected by survival (a market that did not recover has no series), "
+                              "so a recovery rate is selection, never a guarantee. State the "
+                              f"selection effect or drop the claim. sentence: {s[:180]}"})
+    return out
+
+
 def check_causal_claims(draft: str, evidence: str) -> list[dict]:
     """-> list of failures. ALL draft classes, not just the digest: the evidence never measures
     causation in any format, and a note reading "presidential elections regularly TRIGGER market
@@ -1139,6 +1193,7 @@ def run_fidelity(draft: str, evidence: str, kind: str | None = None) -> dict:
     failures.extend(check_label_furniture(draft))
     failures.extend(check_sign_flip_inversion(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
+    failures.extend(check_recovery_guarantee(draft, evidence))
     failures.extend(check_completeness(draft, evidence))
     failures.extend(check_instruction_recitation(draft, evidence))
 
