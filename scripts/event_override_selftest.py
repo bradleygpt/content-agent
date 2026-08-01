@@ -130,6 +130,58 @@ def main():
     check("  ... and re-enabling restores firing (the switch is not one-way)",
           event_override({}, fake(ANCHOR_KOSPI=-33.2), T0) is not None)
 
+    # --- THE PASS, NOT THE COMPONENT (2026-07-31) ---------------------------------------------------
+    # Everything above tests event_override() in isolation, and all 22 passed while the live nightly
+    # was broken: it fired on KOSPI, disarmed it, then yielded at the GPU gate twenty lines later and
+    # drafted nothing. A sequence claim needs the sequence AROUND the component, not just inside it.
+    # These exercise the commit boundary directly, with no GPU, no model and no real state file.
+    print()
+    import run_daily as _rd
+    import content_agent.queue_store as _qs
+
+    _saved = []
+    _orig_save, _orig_log = _qs.save_state, _qs.log
+    _qs.save_state = lambda s: _saved.append(dict(s))
+    _qs.log = lambda *a, **k: None
+    _rd.qs.save_state, _rd.qs.log = _qs.save_state, _qs.log
+    try:
+        _trig = {"trigger": "event_override", "study_id": "recovery:ANCHOR_KOSPI"}
+        _st = {"event_override": {"ANCHOR_KOSPI": {"armed": False, "last_fired": "2026-07-31T17:21:00"}}}
+
+        # (a) the GPU-blocked pass: selection happened, NO draft was produced
+        check("GPU-blocked pass commits NOTHING (draft is None)",
+              _rd._commit_override_state(_trig, _st, None) is False and not _saved)
+        check("  ... so the anchor is still ARMED for the next pass",
+              not _saved)                       # nothing written -> the on-disk disarm never happened
+
+        # (b) a draft exists -> the disarm is earned and persisted
+        check("a queued draft commits the disarm",
+              _rd._commit_override_state(_trig, _st, {"id": "x", "status": "pending"}) is True)
+        check("  ... and what was written carries armed=False",
+              bool(_saved) and _saved[-1]["event_override"]["ANCHOR_KOSPI"]["armed"] is False)
+
+        # (c) a FAILED-FIDELITY draft still counts — it is queued and reviewable
+        _saved.clear()
+        check("a failed_fidelity draft still commits (the story reached a human)",
+              _rd._commit_override_state(_trig, _st, {"id": "y", "status": "failed_fidelity"})
+              and len(_saved) == 1)
+
+        # (d) a non-override trigger never touches override state
+        _saved.clear()
+        check("a cadence trigger commits nothing",
+              _rd._commit_override_state({"trigger": "cadence", "study_id": "pair:A|B"}, _st,
+                                         {"id": "z", "status": "pending"}) is False and not _saved)
+
+        # (e) SELECTION ITSELF MUST BE PURE — this is what let a hermetic test clobber production
+        _saved.clear()
+        _rd._select_trigger({"results_watermark": 0, "last_flagship_ts": 0,
+                             "published_study_ids": []}, allow_override=False)
+        check("_select_trigger writes NO state (a hermetic test cannot mutate production)",
+              not _saved)
+    finally:
+        _qs.save_state, _qs.log = _orig_save, _orig_log
+        _rd.qs.save_state, _rd.qs.log = _orig_save, _orig_log
+
     bad = [lbl for lbl, ok in CHECKS if not ok]
     print(f"\nSELF-TEST: {OK[0]}/{len(CHECKS)} " + ("PASS" if not bad else f"FAIL — {bad}"))
     return 0 if not bad else 1

@@ -93,6 +93,27 @@ def blocked_reason(study_id: str):
     return None, None, {}
 
 
+def _commit_override_state(trig: dict, st: dict, draft: dict | None) -> bool:
+    """Persist the override's DISARM — and only once a draft actually exists.
+
+    The guard's promise is "a long rout fires once". It cannot keep that promise by disarming at
+    SELECTION time, because everything between selection and a queued draft can still fail: the GPU
+    gate, an empty evidence block, a drafting exception. On 2026-07-31 the first real pass proved it,
+    firing on KOSPI and then yielding at the GPU with nothing written.
+
+    A FAILED-FIDELITY draft still counts as fired. It exists, it is in the queue, it is reviewable,
+    and re-drafting the same rout tomorrow would produce the same piece — the override's job was to
+    put the story in front of a human, and it did.
+    """
+    if not trig or trig.get("trigger") != "event_override" or draft is None:
+        return False
+    qs.save_state(st)
+    qs.log("event_override_committed", study_id=trig["study_id"], draft_id=draft.get("id"),
+           draft_status=draft.get("status"))
+    print(f"[daily]   override state committed — {trig['study_id']} disarmed until it re-arms")
+    return True
+
+
 def _select_trigger(st: dict, allow_override: bool = True):
     """Pick the first candidate the guards allow — FALL THROUGH, never stop at the first block.
 
@@ -110,8 +131,22 @@ def _select_trigger(st: dict, allow_override: bool = True):
     # trigger selection that reads live prices, so a test of the fall-through logic would otherwise
     # depend on what the market did today — passing in July and failing in October for no code reason.
     # The nightly never passes it.
+    #
+    # THIS FUNCTION DOES NOT PERSIST. It mutates `st` in memory and leaves the commit to the caller,
+    # which writes only once a draft actually exists (_commit_override_state). Two live bugs, one
+    # cause — a save_state() here made selection impure:
+    #   1. The 2026-07-31 pass fired the override at 17:21, DISARMED KOSPI, then yielded at the GPU
+    #      gate twenty lines later and drafted nothing. The rout spent its one shot on a pass that
+    #      produced no piece, and re-arm needs the drawdown to actually END, so a deep rout would
+    #      never fire again.
+    #   2. dedup_guard_selftest calls this with a synthetic three-key state. The unconditional save
+    #      wrote that fixture over the REAL state.json — which is what cleared event_override and
+    #      reset results_watermark to 0. A hermetic test was mutating production because the function
+    #      it tested had grown a side effect.
+    # Losing an in-memory RE-ARM on a pass that drafts nothing is harmless and deliberate: the next
+    # pass recomputes it from the same prices and re-arms again. Only the DISARM must survive, and it
+    # must survive only when it was earned.
     ovr = event_override(st) if allow_override else None
-    qs.save_state(st)
     if ovr:
         print(f"[daily] EVENT OVERRIDE: {ovr['study_id']} {ovr['pct']:+.2f}% over "
               f"{ovr['window_sessions']} sessions ({ovr['from_date']}..{ovr['to_date']}) "
@@ -402,6 +437,7 @@ def main():
         prov_f = {**prov, "normalised": fl.get("normalised") or []}
         d = qs.new_draft("flagship", fl["title"], fl["body_md"], prov_f, fl["fidelity"], ev_check, trig)
         print(f"[daily]   flagship {d['id']} -> {d['status']}")
+        _commit_override_state(trig, st, d)
         # CHART ATTACH, class-routed (2026-07-29): pair FLAGSHIPS get the regime-fingerprint chart,
         # the same automatic path event/recovery classes have. Notes stay text-only by design — a
         # 40-130-word note is a single claim, and a chart beside it competes with the claim rather
