@@ -538,24 +538,51 @@ _SECTION_REQUIRED = [(None, r"(?mi)^\s{0,3}#{1,4}\s*the\s+mark\b"),
                      ("SECTION 2A", r"(?mi)^\s{0,3}#{1,4}\s*similar\s+sessions\b"),
                      ("SECTION 3", r"(?mi)^\s{0,3}#{1,4}\s*next\s+session\b"),
                      ("SECTION 4", r"(?mi)^\s{0,3}#{1,4}\s*full\s+recovery\b")]
-_TERMINAL_RX = re.compile(r"[.!?][\"')\]]*\s*$")
+# A draft may end on terminal punctuation, or on terminal punctuation followed by a CLOSED trailing
+# parenthetical — "...one episode remains CENSORED. (INDEX-MEASURED; SINGLE-INSTANCE; CENSORED)" is a
+# complete note wearing a label tail, not a cut-off generation. Found by the corpus regression when
+# TRUNCATED-DRAFT was kind-ungated (2026-08-01): it fired on that note and said "generation was cut
+# off" about a draft that finished, while LABEL-FURNITURE was already reporting the real defect —
+# the trailing label list — under the right name. A wrong diagnosis is worse than a duplicate.
+# The group must be CLOSED, so a genuine truncation inside an open parenthesis still fails, and the
+# terminal punctuation is still REQUIRED, so "...the deepest drawdown (INDEX-MEASURED)" with no
+# sentence end before it still fails.
+_TERMINAL_RX = re.compile(r"[.!?][\"')\]]*\s*(?:\([^()]*\)|\[[^\[\]]*\])?\s*$")
 
 
-def check_completeness(draft: str, evidence: str) -> list[dict]:
+def check_completeness(draft: str, evidence: str, kind: str | None = None) -> list[dict]:
     """-> list of failures. Section presence is driven by the EVIDENCE: a quiet session legitimately has
-    no Section 3/4, and demanding them there would be the opposite error."""
-    if not _digest_class(evidence):
-        return []
+    no Section 3/4, and demanding them there would be the opposite error.
+
+    TWO DIFFERENT SCOPES live here, and conflating them was the defect:
+      TRUNCATED-DRAFT  — KIND-scoped (flagship + note). A study draft cut off mid-generation is
+                         broken in every class; it was reachable only through the digest gate, which
+                         is the same hole that let a truncated digest score clean in D1 (caught then
+                         only by reading the text).
+      MISSING/EXTRA-SECTION — EVIDENCE-scoped, digest-only. The section names ARE the digest format.
+    """
     out = []
-    body = draft.rstrip()
-    if body and not _TERMINAL_RX.search(body):
-        out.append({"type": "TRUNCATED-DRAFT", "token": "end-of-draft",
-                    "detail": "the draft does not end on a complete sentence — generation was cut off. "
-                              f"tail: ...{body[-90:]!r}"})
+    # RESEARCH CARDS ARE NOT PROSE and must never be truncation-checked: they are machine triage
+    # records that legitimately end on a structured verdict line ("— outside the anchor universe").
+    # Measured before shipping: a naive ungate fired on 61 non-digest drafts, 60 of them research
+    # cards ending exactly that way. Kind-scoping is the difference between a real check and 60
+    # false positives. kind=None keeps the old digest-only reach, so the thesis-engine answer path
+    # (which has no draft kind and is not a draft) is unaffected.
+    if kind in ("flagship", "note") or _digest_class(evidence):
+        body = draft.rstrip()
+        if body and not _TERMINAL_RX.search(body):
+            out.append({"type": "TRUNCATED-DRAFT", "token": "end-of-draft",
+                        "detail": "the draft does not end on a complete sentence — generation was "
+                                  f"cut off. tail: ...{body[-90:]!r}"})
+    if not _digest_class(evidence):
+        return out
     # NOTE-FORM drafts (quiet sessions ship as notes — option (b), adopted 2026-07-27): the section
     # contract is a FLAGSHIP contract, and a note has no sections BY DESIGN. Note-form is detected
-    # structurally — no markdown headings AND note-sized — because run_fidelity cannot be told the
-    # draft kind without changing its signature everywhere. The size guard is load-bearing: a
+    # STRUCTURALLY — no markdown headings AND note-sized. That was originally because run_fidelity
+    # could not be told the draft kind; it can now (`kind` above), so the rationale has changed even
+    # though the code has not: structural detection ALSO covers kind=None callers and a mislabelled
+    # record, so it stays as the broader test rather than being narrowed to kind == "note". The size
+    # guard is load-bearing: a
     # heading-less FLAGSHIP (the wall-of-text failure) runs hundreds of words and still fails
     # MISSING-SECTION; the note ceiling is 130 words, so 160 leaves margin without opening a hole.
     # TRUNCATED-DRAFT above still applies to notes — a note must end on a sentence too.
@@ -1194,7 +1221,7 @@ def run_fidelity(draft: str, evidence: str, kind: str | None = None) -> dict:
     failures.extend(check_sign_flip_inversion(draft, evidence))
     failures.extend(check_causal_claims(draft, evidence))
     failures.extend(check_recovery_guarantee(draft, evidence))
-    failures.extend(check_completeness(draft, evidence))
+    failures.extend(check_completeness(draft, evidence, kind))
     failures.extend(check_instruction_recitation(draft, evidence))
 
     directional = []

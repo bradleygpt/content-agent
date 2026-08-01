@@ -273,6 +273,41 @@ def main():
                "The median recovery was 7.2 months across the ten recovered episodes."]:
         check(f"RECOVERY-GUARANTEE exempt: '{_s[:52]}'", not _crg(_s, "EV"))
 
+    # --- TRUNCATED-DRAFT, kind-scoped ungate (2026-08-01) ----------------------------------------
+    # Was reachable only through the digest gate — the same hole that let a truncated digest score
+    # clean in D1, caught then only by reading the text. Research cards are NOT prose and must never
+    # be truncation-checked: they end on structured verdict lines by design, and a naive ungate fired
+    # on 60 of them.
+    from content_agent.fidelity import check_completeness as _cc
+    _STUDY, _DIGEST = "MEASURED DRAWDOWN-RECOVERY EVIDENCE", "MEASURED DAILY DIGEST EVIDENCE"
+    _CUT = "The median recovery was 7.2 months and the deepest"
+    def _tr(d, ev, k):
+        return any(x["type"] == "TRUNCATED-DRAFT" for x in _cc(d, ev, k))
+    for _want, _lbl, _d, _ev, _k in [
+        (True,  "flagship study draft cut mid-sentence", _CUT, _STUDY, "flagship"),
+        (True,  "note cut mid-sentence",                 _CUT, _STUDY, "note"),
+        (True,  "digest still reached via kind=None",    _CUT, _DIGEST, None),
+        (False, "RESEARCH card is never truncation-checked", _CUT, _STUDY, "research"),
+        (False, "study draft with kind=None (answer path)",  _CUT, _STUDY, None),
+        (False, "complete flagship",  "Recovery took 4.6 months.", _STUDY, "flagship"),
+    ]:
+        check(f"TRUNCATED-DRAFT: {_lbl}", _tr(_d, _ev, _k) == _want)
+    check("section rules stay digest-only under every kind",
+          not any(x["type"] in ("MISSING-SECTION", "EXTRA-SECTION")
+                  for k in ("flagship", "note", "research", None)
+                  for x in _cc("no headings here. " * 40, _STUDY, k)))
+    # the terminal test itself: a closed trailing label parenthetical ENDS a draft; an open one does
+    # not. The corpus regression produced exactly one hit and it was this false positive — a complete
+    # note whose real defect (the label tail) LABEL-FURNITURE was already reporting by its right name.
+    for _want, _lbl, _d in [
+        (False, "sentence + closed label parenthetical",
+         "One episode remains CENSORED. (INDEX-MEASURED; SINGLE-INSTANCE)"),
+        (False, "sentence + closed bracket", "Recovery took 4.6 months. [SMALL-N]"),
+        (True,  "cut inside an OPEN parenthesis", "The median was 7.2 months (which is"),
+        (True,  "parenthetical with no sentence end before it", "the deepest drawdown (INDEX-MEASURED)"),
+    ]:
+        check(f"terminal test: {_lbl}", _tr(_d, _STUDY, "note") == _want)
+
     print("FIDELITY SELF-TEST (hermetic; real production texts embedded; no GPU/network)\n")
     for good, name in checks:
         print(f"  {'OK ' if good else 'XX '} {name}")
