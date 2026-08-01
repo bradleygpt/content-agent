@@ -72,15 +72,23 @@ def main():
     def fails(draft):
         return run_fidelity(draft, block)["failures"]
 
+    # VALUES READ FROM THE RENDERED BLOCK, not frozen at authoring time (2026-08-01). The pinned
+    # 0.3307/-0.0977 went stale at the fourth decimal when the RATE_10Y substrate repointed to FRED
+    # (7 revised historical prints inside the fixed episode windows) — a fixture that hard-codes
+    # artifact numbers re-breaks on every legitimate refresh, and the test's claim is "VERBATIM
+    # values BIND", which is precisely a claim about values copied from the evidence.
+    import re as _re
+    _corrs = _re.findall(r"corr (-?\d\.\d+)", block)
+    _calm, _repr = _corrs[1], _corrs[5]
     goodish = ("Measured across regimes, each a single instance rather than a distribution, the "
-               "correlation was 0.3307 in the calm stretch and -0.0977 in the repricing episode. "
+               f"correlation was {_calm} in the calm stretch and {_repr} in the repricing episode. "
                "The panel is survivor-only, so crash co-movement is understated.")
     check("verbatim correlations bind",
           not [f for f in fails(goodish) if f["type"] in ("NO-MATCH", "UNIT-MISMATCH")])
     check("an invented correlation -> NO-MATCH",
           any(f["type"] == "NO-MATCH" and "0.61" in f["token"]
               for f in fails("The correlation was 0.6123 in the calm stretch.")))
-    r = run_fidelity("The correlation was 0.3307 in calm markets.", block)
+    r = run_fidelity(f"The correlation was {_calm} in calm markets.", block)
     check("SURVIVORSHIP required and missing -> MISSING-LABEL",
           any(f["type"] == "MISSING-LABEL" and f["token"] == "SURVIVORSHIP" for f in r["failures"]))
     check("SINGLE-INSTANCE required and missing -> MISSING-LABEL",
@@ -91,7 +99,7 @@ def main():
     check("plain co-movement prose does NOT fire the causal rule",
           not any(f["type"] == "CAUSAL-CLAIM"
                   for f in fails("Equities and yields moved together in 2022; the correlation "
-                                 "was -0.0977, a single instance.")))
+                                 f"was {_repr}, a single instance.")))
     # the two mandated-voice shapes that false-fired on the first live pair draft (2026-07-27),
     # locked both ways: the data-limit statement and the outside-factors disclaimer must pass;
     # a price-move assertion in the same vocabulary must still fail.
@@ -121,10 +129,10 @@ def main():
     check("the CORRECT flip narration passes", not _sfi(right, block))
     check("positive corr + prices 'same direction' -> SIGN-FLIP-INVERSION",
           any(f["type"] == "SIGN-FLIP-INVERSION"
-              for f in _sfi("The positive correlation of 0.3307 means stock and bond prices moved "
+              for f in _sfi(f"The positive correlation of {_calm} means stock and bond prices moved "
                             "in the same direction.", block)))
     check("positive corr + prices 'opposite directions' passes (correct flip)",
-          not _sfi("The positive correlation of 0.3307 means stock and bond prices moved in "
+          not _sfi(f"The positive correlation of {_calm} means stock and bond prices moved in "
                    "opposite directions.", block))
     check("yield-basis direction prose without 'prices' is not judged",
           not _sfi("Stocks and yields moved in opposite directions; the correlation was negative.",
@@ -160,7 +168,7 @@ def main():
               not any(f["type"] == "INVENTED-LABEL" for f in _r3["failures"]))
         check("asserting SURVIVOR-SELECTED where evidence lacks it -> INVENTED-LABEL",
               any(f["type"] == "INVENTED-LABEL" and f["token"] == "SURVIVOR-SELECTED"
-                  for f in run_fidelity("This anchor set is survivor-selected. Corr 0.3307; single "
+                  for f in run_fidelity(f"This anchor set is survivor-selected. Corr {_calm}; single "
                                         "instances; survivor-only panel.", block)["failures"]))
     else:
         checks.append((True, "(skipped SURVIVOR-SELECTED checks: AAPL|MSFT not in artifact yet)"))

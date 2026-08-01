@@ -235,8 +235,15 @@ def _refresh_substrate() -> tuple[bool, str]:
     # ticker (correct for its original one-time role, fatal as a daily refresher) and the 12 sector
     # MARKS never advance. That is what produced a digest reporting "no settled sector prints" for an
     # ordinary session.
+    # fetch_intl and fetch_anchors joined 2026-08-01: they were NOT in this list, which is how the
+    # third frontier-freeze happened — the anchors whose refresh the nightly ran (digest, sectors)
+    # stayed current while ten core anchors and the intl trio drifted. Every markets-owned cache is
+    # refreshed here or it is not refreshed at all.
     for script, args, label in [("relational/fetch_digest.py", [], "digest substrate"),
-                                ("relational/fetch_sectors.py", ["--refresh"], "sector ETFs")]:
+                                ("relational/fetch_sectors.py", ["--refresh"], "sector ETFs"),
+                                ("relational/fetch_intl.py", ["--refresh"], "intl indices"),
+                                ("relational/fetch_anchors.py", ["--refresh"], "core anchors"),
+                                ("relational/fetch_index.py", ["--refresh"], "GSPC index")]:
         try:
             r = subprocess.run([py, script, *args], cwd=str(mll), capture_output=True, text=True,
                                timeout=900)
@@ -258,6 +265,20 @@ def _refresh_substrate() -> tuple[bool, str]:
     if r.returncode != 0:
         bad = [ln.strip() for ln in (r.stdout or "").splitlines() if "FROZEN" in ln or "MISSING" in ln]
         return False, "; ".join(bad)[:400] or "staleness check failed"
+    # PER-ANCHOR staleness, reported per series and never as a max across series: the digest check
+    # above covers the digest's ten series; this one covers all 26 engine anchors individually. A
+    # stale anchor is LOGGED per series (so /drafts and the audit trail name the frozen one) but does
+    # not block the digest — the digest's own gate already guards what the digest reads.
+    try:
+        r2 = subprocess.run([py, "relational/check_staleness.py", "--quiet"],
+                            cwd=str(mll), capture_output=True, text=True, timeout=300)
+        if r2.returncode != 0:
+            for ln in (r2.stdout or "").splitlines():
+                if "STALE" in ln:
+                    qs.log("anchor_stale", line=ln.strip()[:160])
+                    print(f"[staleness] {ln.strip()}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"[staleness] per-anchor check raised {type(e).__name__}: {e}")
     return True, "all series current"
 
 

@@ -60,11 +60,23 @@ def main():
         # --- 1. HAPPY PATH: ordering is refresh, refresh, then --check, and only then generate ---
         calls.clear(); logged.clear()
         RD._run_digest(A())
+        # ordering updated 2026-08-01: the per-anchor staleness report (check_staleness.py) runs
+        # AFTER --check, so --check is no longer the last call. The invariant is unchanged — every
+        # refresher precedes verification.
+        _chk = next(i for i, c in enumerate(calls) if "--check" in c)
         check("refresh runs BEFORE the staleness check",
-              len(calls) >= 3 and "--check" not in calls[0] and "--check" in calls[-1])
-        check("both refreshers run (digest substrate + sector ETFs)",
-              any("fetch_digest.py" in c and "--check" not in c for c in calls)
-              and any("fetch_sectors.py" in c for c in calls))
+              all("--check" not in c and "check_staleness" not in c for c in calls[:_chk])
+              and _chk >= 5)
+        # ALL FIVE refreshers, by name. fetch_intl and fetch_anchors were absent from this list and
+        # that absence WAS the third frontier-freeze: ten anchors drifted six weeks while the two
+        # listed refreshers stayed green. A refresher missing from the nightly is now a red test,
+        # not a silent drift.
+        for _fx in ("fetch_digest.py", "fetch_sectors.py", "fetch_intl.py",
+                    "fetch_anchors.py", "fetch_index.py"):
+            check(f"refresher runs nightly: {_fx}",
+                  any(_fx in c and "--check" not in c for c in calls))
+        check("per-anchor staleness check runs after verification",
+              any("check_staleness" in c for c in calls))
         check("current substrate -> a draft is created", not any(e.startswith("digest_skipped")
                                                                  for e, _ in logged))
 
