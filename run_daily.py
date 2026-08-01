@@ -40,11 +40,11 @@ def _fidelity_gated(make, evidence_text: str, **kw) -> dict:
     """Draft -> check -> on hard fail regenerate ONCE with the violations injected -> second fail is
     queued as FAILED-FIDELITY (never silently dropped, never publishable in that state)."""
     d = make(**kw)
-    rep = run_fidelity(d["body_md"], evidence_text)
+    rep = run_fidelity(d["body_md"], evidence_text, d.get("kind"))
     if not rep["passed"]:
         fails = [f"{f['type']}: {f['token']} — {f['detail']}" for f in rep["failures"]][:12]
         d = make(**kw, fidelity_failures=fails)
-        rep = run_fidelity(d["body_md"], evidence_text)
+        rep = run_fidelity(d["body_md"], evidence_text, d.get("kind"))
     d["fidelity"] = rep
     return d
 

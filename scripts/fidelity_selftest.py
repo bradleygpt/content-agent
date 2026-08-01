@@ -20,7 +20,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from content_agent.fidelity import run_fidelity  # noqa: E402
+from content_agent.fidelity import (run_fidelity, _N_RX, _AVERAGE_RX,  # noqa: E402
+                                    _is_evidence_text)
 
 # The real midterm evidence block (trimmed; same labels + figures as production: SMALL-N + FORWARD-LOOKING
 # required, NO SURVIVORSHIP).
@@ -201,6 +202,56 @@ def main():
         check(f"disclaimer-shield: CAUGHT - {name}", _asserted(s))
     for name, s in DISCLAIMERS:
         check(f"disclaimer-shield: still exempt - {name}", not _asserted(s))
+
+    # --- SPLIT SCOPING: piece for flagships, sentence for notes (2026-07-31) ---------------------
+    from content_agent.fidelity import check_median_discipline as _cmd
+    _far = ("The median depth was -15.7%.\n\nSeparately, across the five measured midterms the "
+            "spread ran from -7.3% to -24.5%.")
+    check("flagship: N and range elsewhere in the piece SATISFY the median",
+          not _cmd(_far, "RECOVERY ev", kind="flagship"))
+    check("note: the same text still FAILS — a note's sentence is very nearly the piece",
+          any(f["type"] == "MEDIAN-WITHOUT-N" for f in _cmd(_far, "RECOVERY ev", kind="note")))
+    check("unknown kind defaults to the STRICT sentence reading",
+          any(f["type"] == "MEDIAN-WITHOUT-N" for f in _cmd(_far, "RECOVERY ev")))
+    check("flagship with the statistic nowhere in the piece still fails",
+          any(f["type"] == "MEDIAN-WITHOUT-N"
+              for f in _cmd("The median depth was -15.7%.", "RECOVERY ev", kind="flagship")))
+
+    # --- BARE-AVERAGE now distinguishes REPORTING an average from ARGUING AGAINST one ------------
+    for _lbl, _s, _want in [
+        ("published: 'isn't captured by simple averages' stays silent",
+         "reflecting an underlying tension that isn't captured by simple averages.", False),
+        ("published: 'does not tell the full story; it's an average' stays silent",
+         "This number alone does not tell the full story; it's an average across conditions.", False),
+        ("a REPORTED average still fires", "The average drawdown was -12.3%.", True),
+        ("preamble guard: denial then a reported average still fires",
+         "Averages do not capture this, but the average was -12.3% over the window.", True),
+    ]:
+        _got = any(f["type"] == "BARE-AVERAGE" for f in _cmd(_s, "RECOVERY ev"))
+        check(f"BARE-AVERAGE: {_lbl}", _got == _want)
+
+    # --- _N_RX RECALL TABLE. Enumerated from every "<number> <noun>" in every queued draft, ranked
+    # by use, rather than patched one incident at a time. The distinction the list encodes is COUNT
+    # NOUN vs UNIT NOUN: a unit answers how long or how far, never how many observations.
+    for _noun, _is_count in [("events", True), ("instances", True), ("episodes", True),
+                             ("drawdowns", True), ("cases", True), ("samples", True),
+                             ("midterms", True), ("elections", True), ("meetings", True),
+                             ("cycles", True), ("observations", True), ("times", True),
+                             ("crises", True), ("occurrences", True),
+                             # units — must NOT satisfy N, or "3.6 months" reads as N=3.6
+                             ("months", False), ("weeks", False), ("years", False),
+                             ("points", False), ("percent", False)]:
+        _got = bool(_N_RX.search(f"across the five {_noun}")) or bool(_N_RX.search(f"5 {_noun}"))
+        check(f"_N_RX {'counts' if _is_count else 'ignores'} '{_noun}'", _got == _is_count)
+
+    # --- _is_evidence_text on STUDY-class blocks (never exercised on that shape before) ----------
+    from content_agent.studies import evidence_for as _evf
+    for _sid in ("recovery:ANCHOR_KOSPI", "pair:ANCHOR_BTC|ANCHOR_GOLD", "event:midterm_election"):
+        _ev = _evf(_sid)["evidence"]
+        _sneak = _ev.splitlines()[1].strip()[:60] + " and the average was 0.2% across the set."
+        _m = list(_AVERAGE_RX.finditer(_sneak))[-1]
+        check(f"_is_evidence_text does NOT shield a violation wrapped in quoted evidence ({_sid})",
+              not _is_evidence_text(_sneak, _m, _ev))
 
     print("FIDELITY SELF-TEST (hermetic; real production texts embedded; no GPU/network)\n")
     for good, name in checks:

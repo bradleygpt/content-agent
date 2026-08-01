@@ -364,7 +364,13 @@ _ANY_NUM_RX = re.compile(r"-?\d+(?:\.\d+)?")
 # The purpose survives in both cases: a median never stands alone. Returns carry hit rate + N; durations
 # carry N + range.
 _DURATION_RX = re.compile(r"\bsessions?\b|\bdays?\b|\bmonths?\b|\bweeks?\b|\byears?\b", re.I)
-_RANGE_RX = re.compile(r"\brang\w+\b|\brange\b|\bfrom\s+[\d.]+\s+to\s+[\d.]+|[\d.]+\s+to\s+[\d.]+", re.I)
+# The numeric branches carried [\d.]+ with NO SIGN, so "from -7.3% to -24.5%" did not read as a range
+# — and a drawdown range is negative at BOTH ends, which makes this the commonest range the publication
+# writes. It survived only because "ranging"/"range" usually rides along; a sentence saying "the spread
+# ran from -7.3% to -24.5%" had no range at all as far as the checker was concerned. Fifth recall gap
+# found 2026-07-31, and the first found by a selftest fixture rather than by corpus or incident.
+_RANGE_RX = re.compile(r"\brang\w+\b|\brange\b|\bspread\b|\bspann\w+\b"
+                       r"|\bfrom\s+-?[\d.]+%?\s+to\s+-?[\d.]+|-?[\d.]+%?\s+to\s+-?[\d.]+", re.I)
 
 
 # A median DEPTH is not a median return. Every drawdown is negative by construction, so "positive in
@@ -420,6 +426,17 @@ _N_RX = re.compile(r"\bN\s*=\s*\d+"
                    # "from" is deliberately ABSENT: "from 2 to 2544 sessions" is a RANGE, and
                    # admitting it would let a sentence with no N at all pass (a false negative
                    # traded for the false positive — caught by testing both directions).
+                   # THE LIST IS COUNT NOUNS, NOT UNIT NOUNS, and that is the whole principle. Three
+                   # gaps were patched one incident at a time before the set was enumerated properly
+                   # (2026-07-31: every "<number> <noun>" in every queued draft, ranked by use). The
+                   # enumeration settled it — the apparent "gaps" mostly are not:
+                   #     months 327   weeks 8   points 32   -> DURATION and MAGNITUDE. "3.6 months"
+                   #                                           is not N=3.6. Correctly excluded, the
+                   #                                           same reason sessions/days are excluded
+                   #                                           from the bare-count branch below.
+                   #     times, crises, occurrences        -> genuine counts. Added.
+                   # A new noun belongs here only if "<number> <noun>" answers HOW MANY OBSERVATIONS,
+                   # never how long or how far. The selftest carries the table.
                    # "events" was ABSENT — the single most common count noun in an event study, so
                    # "Across 166 events, the median recovery is 0.5 months" read as N-missing. Found
                    # 2026-07-31 when the rule was ungated from digest-class and lit up nearly every
@@ -433,7 +450,8 @@ _N_RX = re.compile(r"\bN\s*=\s*\d+"
                    # a bare count noun, but NOT sessions/days: "2544 sessions" is a duration.
                    r"|\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+){0,2}"
                    r"(?:instances?|episodes?|events?|samples?|cases?|drawdowns?|"
-                   r"midterms?|elections?|meetings?|cycles?|observations?)\b",
+                   r"midterms?|elections?|meetings?|cycles?|observations?|"
+                   r"times|occurrences?|crises|crisis)\b",
                    re.I)
 # "average"/"mean" as a statistic. Excludes idioms that are not the statistic ("on average" alone still
 # counts — it is exactly the hedge this class must not use; "meanwhile"/"meaningful" are word-boundary
@@ -724,15 +742,24 @@ _INSTRUCTION_HINT = re.compile(r"\bdo not\b|\bnever\b|\bmandatory\b|\bstate this
 
 
 def check_instruction_recitation(draft: str, evidence: str) -> list[dict]:
-    """-> list of failures. Flags prose that reproduces the evidence's INSTRUCTION text verbatim."""
-    if not _digest_class(evidence):
-        return []
+    """-> list of failures. Flags prose that reproduces the evidence's INSTRUCTION text verbatim.
+
+    ALL CLASSES since 2026-07-31. It was digest-gated and reported zero hits, which is exactly the
+    reading a gated rule gives you either way — the fourth carve-out in this module to hide its own
+    coverage rather than a violation. Study evidence carries MORE instruction text than the digest
+    does (the DELIBERATELY ABSENT directive, the honesty-label prohibitions, the alignment
+    convention), so it is the class with the most to recite."""
     instr_lines = [ln.strip() for ln in evidence.splitlines() if _INSTRUCTION_HINT.search(ln)]
     if not instr_lines:
         return []
 
     def words(s):
-        return re.sub(r"[^0-9a-z ]+", " ", s.lower()).split()
+        # DIGITS ARE NOT RECITATION — the module said so in prose and then counted them as words.
+        # "2006-11-07, 2010-11-02, 2014-11-04, 2018-11-06, 2022-11-08" normalises to fifteen tokens
+        # and cleared the nine-word bar on its own, so a draft QUOTING the event dates (which it is
+        # required to do) read as reciting an instruction. Ungating the rule surfaced 42 of these and
+        # not one real recitation. Match on the WORDS of an instruction; the figures are the job.
+        return [w for w in re.sub(r"[^0-9a-z ]+", " ", s.lower()).split() if not w.isdigit()]
 
     d_words = words(draft)
     d_join = " ".join(d_words)
@@ -910,7 +937,36 @@ def check_word_numbers(draft: str, evidence: str) -> list[dict]:
     return out
 
 
-def check_median_discipline(draft: str, evidence: str) -> list[dict]:
+# BARE-AVERAGE had NO denial exemption while CAUSAL-CLAIM had five, so a sentence ARGUING AGAINST
+# averaging failed a rule about REPORTING averages — the sharpest form of the carve-out pattern, and
+# found in two published pieces:
+#   "reflecting an underlying tension that isn't captured by simple averages"
+#   "This number alone does not tell the full story; it's an average across various market conditions"
+# Both are the house voice doing its job. The exemption reuses the item-1 preamble guard so it cannot
+# become a shield: a denial that precedes an actually-reported average still fires.
+_AVG_DENIED_RX = re.compile(
+    r"\b(?:not|never|isn'?t|aren'?t|doesn'?t|don'?t|cannot|can'?t|no)\b[^.]{0,40}"
+    r"\b(?:captur\w+|tell\w*|show\w*|reflect\w*|conve\w+|substitut\w*|replac\w*|suffic\w*)\b"
+    r"|\b(?:more\s+than|beyond|behind|underneath|obscur\w+|hid\w+|mask\w+|conceal\w+|"
+    r"flatten\w*|destroy\w*|wash\w+\s+out)\b"
+    r"|\bnot\s+(?:an?\s+)?(?:average|mean)\b|\bavoid\w*\s+(?:the\s+)?(?:average|mean)\b", re.I)
+# A reported average looks like a NUMBER attached to the word, or an explicit "the average was/is".
+_AVG_REPORTED_RX = re.compile(
+    r"(?:average|mean)[^.]{0,30}?-?\d+(?:\.\d+)?|-?\d+(?:\.\d+)?[^.]{0,30}?(?:average|mean)"
+    r"|\b(?:the\s+)?(?:average|mean)\s+(?:was|is|of|stood|came|sits|runs)\b", re.I)
+
+
+def _average_is_reported(sentence: str, m: "re.Match") -> bool:
+    """Does the sentence REPORT an average, or argue against relying on one?"""
+    if _AVG_REPORTED_RX.search(sentence):
+        return True                      # a figure is attached: reported, whatever else it says
+    denial = _AVG_DENIED_RX.search(sentence)
+    if denial and not _denial_is_preamble(sentence, denial):
+        return False                     # criticising averaging, and naming nothing after it
+    return True
+
+
+def check_median_discipline(draft: str, evidence: str, kind: str | None = None) -> list[dict]:
     """-> list of failures. Sentence-scoped: the hit rate and N must sit in the SAME sentence as the
     median, because a reader takes the number from the sentence they are reading, not from a paragraph
     three sentences down.
@@ -920,7 +976,21 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
     without its N ("the median recovery stands at 7.2 months", N unstated) is precisely the misleading
     statistic this publication exists to refuse, and the study classes need the rule MORE than the
     digest does, not less. Third instance of the digest gate acting as a shield; CAUSAL-CLAIM was
-    ungated for the same reason ("it passed for months because the rule was digest-scoped")."""
+    ungated for the same reason ("it passed for months because the rule was digest-scoped").
+
+    SCOPE VARIES BY KIND, and the split was measured before it was built. Across the 12 published
+    pieces the rule newly failed:
+      FLAGSHIPS put the range beside the median and the N a paragraph away — N was present in the
+        piece in all three. A reader of 800 words has the denominator.
+      NOTES put N beside the median and omitted the range from the entire piece — 0 of 6 carried it
+        anywhere. Their gap is a MISSING statistic, not a distant one, so piece scope would clear
+        none of them and sentence scope costs them nothing they had.
+    So a flagship may satisfy N-and-range anywhere in the piece; a note must satisfy them in the
+    sentence, because in a note the sentence very nearly IS the piece. Default is the STRICT reading:
+    a caller that does not know the kind gets sentence scope."""
+    piece_scoped = (kind == "flagship")
+    piece_n = bool(_N_RX.search(draft)) if piece_scoped else False
+    piece_range = bool(_RANGE_RX.search(draft)) if piece_scoped else False
     out = []
     for sent in re.split(r"(?<=[.!?])\s+", draft):
         s = sent.strip()
@@ -928,19 +998,22 @@ def check_median_discipline(draft: str, evidence: str) -> list[dict]:
             continue
         if _median_is_reported(s):
             m = re.search(r"\bmedian\b", s, re.I)
-            kind = _median_kind(s, m.end()) if m else "return"
-            if kind in ("duration", "depth"):
-                if not (_N_RX.search(s) and _RANGE_RX.search(s)):
-                    out.append({"type": "MEDIAN-WITHOUT-N", "token": f"median ({kind})",
-                                "detail": f"a median {kind} must carry its N and its range in "
-                                          f"the same sentence (a hit rate does not exist for a "
-                                          f"{kind}). sentence: {s[:180]}"})
-            elif not (_HITRATE_RX.search(s) and _N_RX.search(s)):
+            mkind = _median_kind(s, m.end()) if m else "return"
+            has_n = bool(_N_RX.search(s)) or piece_n
+            has_range = bool(_RANGE_RX.search(s)) or piece_range
+            where = "the piece" if piece_scoped else "the same sentence"
+            if mkind in ("duration", "depth"):
+                if not (has_n and has_range):
+                    out.append({"type": "MEDIAN-WITHOUT-N", "token": f"median ({mkind})",
+                                "detail": f"a median {mkind} must carry its N and its range in "
+                                          f"{where} (a hit rate does not exist for a "
+                                          f"{mkind}). sentence: {s[:180]}"})
+            elif not (_HITRATE_RX.search(s) and has_n):
                 out.append({"type": "MEDIAN-WITHOUT-N", "token": "median (return)",
-                            "detail": "a median return must carry its hit rate AND N in the same "
-                                      f"sentence — a bare median reads as a forecast. sentence: {s[:180]}"})
+                            "detail": f"a median return must carry its hit rate AND N in {where} "
+                                      f"— a bare median reads as a forecast. sentence: {s[:180]}"})
         m = _AVERAGE_RX.search(s)
-        if m and not _is_evidence_text(s, m, evidence):
+        if m and not _is_evidence_text(s, m, evidence) and _average_is_reported(s, m):
             out.append({"type": "BARE-AVERAGE", "token": "average/mean",
                         "detail": "averages are forbidden for conditional distributions — report the "
                                   f"median with its hit rate, N and range. sentence: {s[:180]}"})
@@ -999,7 +1072,7 @@ _DIRECTIONAL_RX = re.compile(r"\b(?:rise[sn]?|rising|rose|climb\w*|rall(?:y|ies|
                              r"lower|fall\w*|fell|drop\w*|beat|sink\w*|surge\w*)\b", re.I)
 
 
-def run_fidelity(draft: str, evidence: str) -> dict:
+def run_fidelity(draft: str, evidence: str, kind: str | None = None) -> dict:
     """-> {passed, failures[], labels{}, numeric[], directional[]} — deterministic."""
     ev_tokens, ev_dates, ev_years = _extract(evidence, wide_evidence=True)
     ev_pairs = {(t["value"], t["unit"]) for t in ev_tokens if t["unit"]}
@@ -1060,7 +1133,7 @@ def run_fidelity(draft: str, evidence: str) -> dict:
                          "detail": f"draft asserts {name} but the evidence never carries it — "
                                    f"a false caveat is a false claim, same class as a false number"})
 
-    failures.extend(check_median_discipline(draft, evidence))
+    failures.extend(check_median_discipline(draft, evidence, kind))
     failures.extend(check_word_numbers(draft, evidence))
     failures.extend(check_identifier_leak(draft))
     failures.extend(check_label_furniture(draft))

@@ -140,7 +140,7 @@ def edit(did):
     d0 = qs.get_draft(did)
     if not d0:
         return jsonify({"error": "not found"}), 404
-    report = run_fidelity(md, d0["evidence"])            # re-run fidelity on the EDITED text pre-publish
+    report = run_fidelity(md, d0["evidence"], d0.get("kind"))            # re-run fidelity on the EDITED text pre-publish
     d = qs.edit(did, md, report)
     return jsonify({"ok": True, "status": d["status"], "fidelity": report})
 
