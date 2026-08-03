@@ -100,6 +100,8 @@ def evidence_for(study_id: str) -> dict | None:
       sector_event:<key>     -> the SECTOR-BY-SECTOR comparative for that event (build_sector_event_block,
                                 mode 'all') — the dispersion-across-sectors material.
     """
+    if study_id == "resilience:GSPC":
+        return resc.build_resilience_block()
     kind, _, key = study_id.partition(":")
     if kind == "sector_event":
         st = _event_studies().get(key)
