@@ -414,7 +414,12 @@ def _median_is_reported(sent: str) -> bool:
         if _ANY_NUM_RX.search(after) or _ANY_NUM_RX.search(before):
             return True
     return False
-_HITRATE_RX = re.compile(r"\bhit[\s-]rate\b|\d+\s+of\s+\d+|positive\s+in\b|\bN\s*=\s*\d+", re.I)
+# "percentile" joined 2026-08-03: a median stated as its percentile IN A NAMED BASELINE is
+# a hit-rate statement (52nd percentile of all windows = the share of windows below it) —
+# the pre-registered resilience shape reports conditional medians against baseline
+# distributions rather than digest-style hit rates.
+_HITRATE_RX = re.compile(r"\bhit[\s-]rate\b|\d+\s+of\s+\d+|positive\s+in\b|\bN\s*=\s*\d+"
+                         r"|\bpercentile\b", re.I)
 # Intervening words are normal English: "Across all 261 RECOVERED instances", "over 46 recovered
 # instances". The original demanded the noun immediately after the digit, so a sentence plainly
 # carrying N=261 was failed for omitting it — a FALSE POSITIVE, found by verifying the rule

@@ -28,7 +28,8 @@ _OLLAMA_NAMES = ("ollama", "ollama.exe", "ollama_llama_server", "ollama_llama_se
 # shell/browser surface that cannot host a model, and the card must be measurably near-empty while it
 # runs. A python.exe is never admissible however it is named — that is the quant/philosophy tenant the
 # guard exists for, and yielding to it stays mandatory.
-_SYSTEM_DISPLAY_NAMES = ("dwm.exe", "m365copilot.exe", "msedgewebview2.exe")
+# shellexperiencehost.exe joined 2026-08-03: Windows shell surface, card at ~700MiB when it fired.
+_SYSTEM_DISPLAY_NAMES = ("dwm.exe", "m365copilot.exe", "msedgewebview2.exe", "shellexperiencehost.exe")
 
 
 def _compute_pids() -> list[int]:
@@ -50,10 +51,31 @@ def _proc_name(pid: int) -> str:
         return ""
 
 
+def _card_used_mib() -> int:
+    try:
+        r = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                           capture_output=True, text=True, timeout=10, creationflags=_NO_WINDOW)
+        return int(r.stdout.strip().splitlines()[0])
+    except Exception:
+        return 10 ** 9          # unreadable -> assume busy, never assume free
+
+
 def gpu_free_for_drafting() -> tuple[bool, str]:
+    """MEASURE, don't enumerate (2026-08-03). The exempt-name list lost four rounds of whack-a-mole
+    (dwm, m365copilot, msedgewebview2, shellexperiencehost, then windowsterminal — every WinUI app
+    registers as a WDDM compute app while merely rendering). The admission criterion always named
+    the real test: the card is measurably near-empty. A resident model needs gigabytes; if used
+    memory is under the floor, no name on the card can be holding one. The one rule that stays
+    name-based is MANDATORY: any python.exe tenant means quant/philosophy is working, and drafting
+    yields regardless of memory."""
     pids = _compute_pids()
-    for pid in pids:
-        name = _proc_name(pid)
+    names = [(pid, _proc_name(pid)) for pid in pids]
+    for pid, name in names:
+        if name and "python" in name:
+            return False, f"python GPU tenant: {name} (pid {pid}) — quant/philosophy has the card"
+    if _card_used_mib() < 1500:
+        return True, "card near-empty (<1.5GiB) — renderers only, no model resident"
+    for pid, name in names:
         if name in _SYSTEM_DISPLAY_NAMES:
             continue
         if name and not any(o in name for o in _OLLAMA_NAMES):
